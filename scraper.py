@@ -205,15 +205,18 @@ def scrape_articles(start_page, end_page, output='articles', output_format='both
     scraper = NUOnlineScraper()
     articles = scraper.scrape_range(start_page, end_page)
 
+    # Generate readable timestamp for filename
+    timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+
     print(f"\nTotal articles scraped: {len(articles)}")
 
     if output_format in ['json', 'both']:
-        json_file = f"{output}.json"
+        json_file = f"{output}_{timestamp}.json"
         scraper.save_to_json(articles, json_file)
         print(f"Articles saved to {json_file}")
 
     if output_format in ['csv', 'both']:
-        csv_file = f"{output}.csv"
+        csv_file = f"{output}_{timestamp}.csv"
         scraper.save_to_csv(articles, csv_file)
         print(f"Articles saved to {csv_file}")
 
