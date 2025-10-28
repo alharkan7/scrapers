@@ -13,10 +13,16 @@ import time
 import re
 from datetime import datetime
 import os
+from selenium import webdriver
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.common.exceptions import TimeoutException, NoSuchElementException
 
 
 class MultatuliFullArticleScraper:
-    def __init__(self, base_url="https://projectmultatuli.org"):
+    def __init__(self, base_url="https://projectmultatuli.org", headless=True):
         self.base_url = base_url
         self.session = requests.Session()
         # Set more realistic headers to avoid being blocked
@@ -35,6 +41,40 @@ class MultatuliFullArticleScraper:
             'Cache-Control': 'max-age=0',
         })
 
+        # Setup Selenium WebDriver
+        self.headless = headless
+        self.driver = None
+
+    def setup_driver(self):
+        """Setup Selenium WebDriver."""
+        if self.driver is None:
+            options = webdriver.ChromeOptions()
+            if self.headless:
+                options.add_argument('--headless')
+            options.add_argument('--no-sandbox')
+            options.add_argument('--disable-dev-shm-usage')
+            options.add_argument('--disable-gpu')
+            options.add_argument('--window-size=1920,1080')
+            options.add_argument('--user-agent=Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/118.0.0.0 Safari/537.36')
+
+            try:
+                # Use Selenium 4.x API with service
+                from selenium.webdriver.chrome.service import Service
+                service = Service(executable_path='/opt/homebrew/bin/chromedriver')
+                self.driver = webdriver.Chrome(service=service, options=options)
+                self.driver.implicitly_wait(3)
+                print("Chrome driver setup successfully!")
+            except Exception as e:
+                print(f"Error setting up Chrome driver: {e}")
+                print("Make sure Chrome and ChromeDriver are installed.")
+                raise
+
+    def teardown_driver(self):
+        """Close Selenium WebDriver."""
+        if self.driver:
+            self.driver.quit()
+            self.driver = None
+
     def scrape_full_article(self, url):
         """
         Scrape a full article from a Multatuli URL.
@@ -48,13 +88,20 @@ class MultatuliFullArticleScraper:
         print(f"Scraping article: {url}")
 
         try:
-            response = self.session.get(url, timeout=30)
-            response.raise_for_status()
-        except requests.RequestException as e:
-            print(f"Error fetching article {url}: {e}")
+            # Navigate to the article page
+            self.driver.get(url)
+
+            # Wait for page to load
+            WebDriverWait(self.driver, 10).until(
+                EC.presence_of_element_located((By.TAG_NAME, "h1"))
+            )
+
+        except Exception as e:
+            print(f"Error loading article {url}: {e}")
             return None
 
-        soup = BeautifulSoup(response.content, 'lxml')
+        # Parse the page content with BeautifulSoup
+        soup = BeautifulSoup(self.driver.page_source, 'lxml')
         article_data = {}
 
         # Extract title from h1 elementor-heading-title
@@ -194,29 +241,40 @@ class MultatuliFullArticleScraper:
             print(f"Error parsing JSON file: {e}")
             return []
 
+        # Setup driver once for all articles
+        try:
+            self.setup_driver()
+        except Exception as e:
+            print(f"Failed to setup driver: {e}")
+            return []
+
         full_articles = []
 
-        for i, article in enumerate(articles_data, 1):
-            url = article.get('url')
-            if not url:
-                print(f"Article {i} has no URL, skipping")
-                continue
+        try:
+            for i, article in enumerate(articles_data, 1):
+                url = article.get('url')
+                if not url:
+                    print(f"Article {i} has no URL, skipping")
+                    continue
 
-            print(f"Processing article {i}/{len(articles_data)}")
-            full_article_data = self.scrape_full_article(url)
+                print(f"Processing article {i}/{len(articles_data)}")
+                full_article_data = self.scrape_full_article(url)
 
-            if full_article_data:
-                # Merge with existing data if available
-                merged_data = {**article, **full_article_data}
-                full_articles.append(merged_data)
-                print(f"✓ Successfully scraped: {full_article_data.get('title', 'Unknown title')[:60]}...")
-            else:
-                print(f"✗ Failed to scrape article: {url}")
-                # Still add the basic data if scraping failed
-                full_articles.append(article)
+                if full_article_data:
+                    # Merge with existing data if available
+                    merged_data = {**article, **full_article_data}
+                    full_articles.append(merged_data)
+                    print(f"✓ Successfully scraped: {full_article_data.get('title', 'Unknown title')[:60]}...")
+                else:
+                    print(f"✗ Failed to scrape article: {url}")
+                    # Still add the basic data if scraping failed
+                    full_articles.append(article)
 
-            # Add delay to be respectful to the server
-            time.sleep(2)
+                # Add delay to be respectful to the server
+                time.sleep(2)
+        finally:
+            # Always cleanup driver
+            self.teardown_driver()
 
         return full_articles
 
@@ -255,7 +313,7 @@ class MultatuliFullArticleScraper:
             writer.writerows(csv_data)
 
 
-def scrape_multatuli_full_articles(json_file, output='multatuli_full_articles', output_format='both'):
+def scrape_multatuli_full_articles(json_file, output='multatuli_full_articles', output_format='both', headless=True):
     """
     Scrape full Multatuli articles from URLs in a JSON file.
 
@@ -263,6 +321,7 @@ def scrape_multatuli_full_articles(json_file, output='multatuli_full_articles', 
     - json_file (str): Path to JSON file containing article URLs
     - output (str): Output filename (without extension), default 'multatuli_full_articles'
     - output_format (str): Output format ('json', 'csv', or 'both'), default 'both'
+    - headless (bool): Run browser in headless mode, default True
 
     Returns:
     - list: List of scraped full articles
@@ -273,7 +332,7 @@ def scrape_multatuli_full_articles(json_file, output='multatuli_full_articles', 
     if not os.path.exists(json_file):
         raise FileNotFoundError(f"JSON file not found: {json_file}")
 
-    scraper = MultatuliFullArticleScraper()
+    scraper = MultatuliFullArticleScraper(headless=headless)
     articles = scraper.scrape_articles_from_json(json_file)
 
     # Generate readable timestamp for filename
@@ -300,13 +359,18 @@ def main():
     parser.add_argument('--output', '-o', default='multatuli_full_articles', help='Output filename (without extension)')
     parser.add_argument('--format', choices=['json', 'csv', 'both'], default='both',
                        help='Output format')
+    parser.add_argument('--headless', action='store_true', default=True,
+                       help='Run browser in headless mode (default: True)')
+    parser.add_argument('--no-headless', action='store_false', dest='headless',
+                       help='Run browser in visible mode')
 
     args = parser.parse_args()
 
     scrape_multatuli_full_articles(
         json_file=args.json_file,
         output=args.output,
-        output_format=args.format
+        output_format=args.format,
+        headless=args.headless
     )
 
 
