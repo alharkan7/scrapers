@@ -2,6 +2,109 @@
 
 This repository contains various Python tools for different purposes.
 
+## Mongabay Scraper
+
+A Python script to scrape articles from Mongabay.co.id search results. Specifically designed to scrape articles about nickel mining from search queries, with support for "load more" functionality instead of traditional pagination.
+
+### Features
+
+- **Search-based scraping**: Scrapes articles from search results for specific queries
+- **Load more functionality**: Uses Selenium to handle JavaScript "load more" buttons (not traditional pagination)
+- **Article extraction**: Extracts title, URL, author, date, and image URL for each article
+- **Duplicate prevention**: Automatically avoids scraping duplicate articles
+- **Multiple output formats**: Save results as JSON, CSV, or both
+- **Headless browser support**: Can run in headless mode for server environments
+
+### Requirements
+
+- Python 3.6+
+- requests library
+- beautifulsoup4 library
+- lxml library
+- selenium library
+- Chrome/Chromium browser (for Selenium WebDriver)
+
+### Installation
+
+#### Additional Setup for Selenium
+
+After installing Python dependencies, you need to install ChromeDriver for Selenium:
+
+**macOS:**
+```bash
+# Install ChromeDriver via Homebrew
+brew install chromedriver
+
+# Or download manually from https://chromedriver.chromium.org/
+```
+
+**Ubuntu/Debian:**
+```bash
+sudo apt-get install chromium-chromedriver
+```
+
+**Windows:**
+Download ChromeDriver from: https://chromedriver.chromium.org/
+
+### Usage
+
+#### Command Line Usage
+
+**Basic usage (scrape nickel mining articles):**
+```bash
+python3 mongabay_scraper.py
+```
+
+**With custom query and page limit:**
+```bash
+python3 mongabay_scraper.py --query "tambang nikel" --max-pages 5
+```
+
+**Specify output options:**
+```bash
+python3 mongabay_scraper.py --output my_articles --format json --no-headless
+```
+
+**Run in visible browser mode (for debugging):**
+```bash
+python3 mongabay_scraper.py --no-headless
+```
+
+#### Python Usage
+
+```python
+from mongabay_scraper import scrape_mongabay_articles
+
+# Basic usage
+articles = scrape_mongabay_articles()
+
+# With custom parameters
+articles = scrape_mongabay_articles(
+    query="tambang nikel",
+    max_pages=10,
+    output='nickel_mining_articles',
+    output_format='both',
+    headless=True
+)
+
+print(f"Total articles scraped: {len(articles)}")
+```
+
+### Output Format
+
+The scraper extracts the following information for each article:
+- **title**: Article headline
+- **url**: Full URL to the article
+- **author**: Article author
+- **date**: Publication date
+- **image_url**: URL to the article's featured image
+
+### Notes
+
+- This scraper uses Selenium because the site employs JavaScript-based "load more" functionality
+- Articles are scraped until no new articles are found or max_pages limit is reached
+- The scraper automatically handles duplicates and stops when no new content is available
+
 ## PDF Compressor
 
 A Python script to compress PDF files with minimum text quality loss. This tool is particularly useful for large, image-heavy PDFs like scanned documents or books.
