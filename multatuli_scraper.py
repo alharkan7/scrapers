@@ -58,26 +58,42 @@ class MultatuliScraperV2:
         self.driver = None
 
     def setup_driver(self):
-        """Setup Selenium WebDriver."""
+        """Setup Selenium WebDriver with anti-detection measures."""
         if self.driver is None:
             options = webdriver.ChromeOptions()
-            if self.headless:
-                options.add_argument('--headless')
-            options.add_argument('--no-sandbox')
+            
+            # Anti-detection: Don't use headless (Cloudflare detects it easily)
+            # if self.headless:
+            #     options.add_argument('--headless')
+            
+            # Better anti-detection options
+            options.add_argument('--disable-blink-features=AutomationControlled')
+            options.add_experimental_option("excludeSwitches", ["enable-automation"])
+            options.add_experimental_option('useAutomationExtension', False)
             options.add_argument('--disable-dev-shm-usage')
-            options.add_argument('--disable-gpu')
+            options.add_argument('--no-sandbox')
             options.add_argument('--window-size=1920,1080')
-            options.add_argument('--user-agent=Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/118.0.0.0 Safari/537.36')
-
+            options.add_argument('--start-maximized')
+            
+            # Use a realistic user agent
+            options.add_argument('user-agent=Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36')
+            
+            # Disable automation flags
+            options.add_argument('--disable-blink-features=AutomationControlled')
+            
             try:
-                # Use Selenium 4.x API with service
-                from selenium.webdriver.chrome.service import Service
-                service = Service(executable_path='/opt/homebrew/bin/chromedriver')
-                self.driver = webdriver.Chrome(service=service, options=options)
-                self.driver.implicitly_wait(3)
-                print("Chrome driver setup successfully!")
+                # Let Selenium find chromedriver automatically
+                self.driver = webdriver.Chrome(options=options)
+                
+                # Remove webdriver property to avoid detection
+                self.driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
+                
+                # Set page load strategy
+                self.driver.set_page_load_timeout(60)
+                
+                print("✓ Chrome driver setup successfully!")
             except Exception as e:
-                print(f"Error setting up Chrome driver: {e}")
+                print(f"✗ Error setting up Chrome driver: {e}")
                 print("Make sure Chrome and ChromeDriver are installed.")
                 raise
 
@@ -124,6 +140,11 @@ class MultatuliScraperV2:
         # Check for author containers
         penulis_containers = soup.find_all('div', class_='penulis')
         print(f"Debug: Found {len(penulis_containers)} author containers with class 'penulis'")
+        
+        # Debug: Check what's inside the first author container
+        if penulis_containers:
+            first_author = penulis_containers[0]
+            print(f"Debug: First author container HTML: {first_author.prettify()[:500]}")
 
         # Method 1: Extract from title links with improved container detection
         print("\n=== Method 1: Extracting from title links ===")
@@ -179,6 +200,14 @@ class MultatuliScraperV2:
                         author_link = current_elem.find('a')
                         if author_link:
                             article['author'] = author_link.get_text(strip=True)
+
+                        # Try multiple date selectors
+                        date_elem = (current_elem.find('span', class_='tgl') or
+                                   current_elem.find('span', class_='date') or
+                                   current_elem.find('time') or
+                                   current_elem.find('span', class_=lambda x: x and 'date' in x.lower()))
+                        if date_elem:
+                            article['date'] = date_elem.get_text(strip=True)
 
                         found_author = True
                         break
@@ -242,7 +271,11 @@ class MultatuliScraperV2:
                                 if author_link:
                                     article['author'] = author_link.get_text(strip=True)
 
-                                date_elem = author_container.find('span', class_='tgl')
+                                # Try multiple date selectors
+                                date_elem = (author_container.find('span', class_='tgl') or
+                                           author_container.find('span', class_='date') or
+                                           author_container.find('time') or
+                                           author_container.find('span', class_=lambda x: x and 'date' in x.lower()))
                                 if date_elem:
                                     article['date'] = date_elem.get_text(strip=True)
 
@@ -282,27 +315,42 @@ class MultatuliScraperV2:
             print(f"Loading page: {url}")
             self.driver.get(url)
 
-            # Wait for initial articles to load
-            print("Waiting for initial page to load...", end="", flush=True)
-            WebDriverWait(self.driver, 10).until(
-                EC.presence_of_element_located((By.CLASS_NAME, "elementor-widget-wrap"))
-            )
-            print(" Done!")
+            # Wait for Cloudflare challenge to complete
+            print("Waiting for page to load (checking for Cloudflare)...", end="", flush=True)
+            time.sleep(5)  # Initial wait for Cloudflare challenge
+            
+            # Check if we're on a Cloudflare challenge page
+            page_source = self.driver.page_source
+            if "Verify you are human" in page_source or "Just a moment" in page_source:
+                print("\n⚠ Cloudflare challenge detected! Waiting up to 30 seconds...")
+                
+                # Wait for challenge to complete (look for actual content to appear)
+                try:
+                    WebDriverWait(self.driver, 30).until(
+                        lambda driver: "Verify you are human" not in driver.page_source and 
+                                     "Just a moment" not in driver.page_source
+                    )
+                    print("✓ Cloudflare challenge passed!")
+                    time.sleep(3)  # Extra wait for content to load
+                except TimeoutException:
+                    print("✗ Cloudflare challenge timeout. Content may not load properly.")
+            else:
+                print(" No Cloudflare detected.")
 
-            # Wait for article content to actually load (look for h4 elements or specific article indicators)
+            # Wait for initial articles to load
             print("Waiting for article content to load...", end="", flush=True)
             try:
-                WebDriverWait(self.driver, 15).until(
+                WebDriverWait(self.driver, 20).until(
                     lambda driver: len(driver.find_elements(By.TAG_NAME, "h4")) > 1 or
-                                   len([elem for elem in driver.find_elements(By.TAG_NAME, "a")
-                                        if elem.get_attribute('href') and ('artikel' in elem.get_attribute('href') or 'tambang' in elem.get_attribute('href').lower())]) > 0
+                                   len(driver.find_elements(By.CSS_SELECTOR, "a.judul")) > 0
                 )
                 h4_count = len(self.driver.find_elements(By.TAG_NAME, "h4"))
-                article_links = len([elem for elem in self.driver.find_elements(By.TAG_NAME, "a")
-                                   if elem.get_attribute('href') and ('artikel' in elem.get_attribute('href') or 'tambang' in elem.get_attribute('href').lower())])
-                print(f" Article content loaded! (H4: {h4_count}, Article links: {article_links})")
+                judul_count = len(self.driver.find_elements(By.CSS_SELECTOR, "a.judul"))
+                print(f" ✓ Content loaded! (H4: {h4_count}, Article links: {judul_count})")
             except TimeoutException:
-                print(" Timeout waiting for article content. Proceeding anyway...")
+                print(" ✗ Timeout waiting for article content.")
+                print(f"   Page title: {self.driver.title}")
+                print(f"   Current URL: {self.driver.current_url}")
 
             page_count = 0
             max_pages = max_pages or float('inf')
@@ -589,6 +637,14 @@ class MultatuliScraperV2:
                     article['title'] = h4_elem.text.strip()
                 except:
                     pass
+                
+                # Get date from tanggal attribute on the title link (primary source)
+                try:
+                    tanggal = title_link.get_attribute('tanggal')
+                    if tanggal:
+                        article['date'] = tanggal
+                except:
+                    pass
 
                 # Instead of finding containers, look for the next relevant elements after this title link
                 # Find the next image after this title link
@@ -621,12 +677,24 @@ class MultatuliScraperV2:
                         except:
                             pass
 
-                        try:
-                            date_elem = author_container.find_element(By.CSS_SELECTOR, "span.tgl")
-                            if date_elem:
-                                article['date'] = date_elem.text.strip()
-                        except:
-                            pass
+                        # Try multiple date selectors (as fallback if tanggal attribute wasn't found)
+                        if not article.get('date'):
+                            date_selectors = [
+                                "span.tgl",
+                                "span.date",
+                                "time",
+                                "span[class*='date' i]",
+                                ".elementor-post-date",
+                                "span.elementor-post-info__item--type-date"
+                            ]
+                            for selector in date_selectors:
+                                try:
+                                    date_elem = author_container.find_element(By.CSS_SELECTOR, selector)
+                                    if date_elem and date_elem.text.strip():
+                                        article['date'] = date_elem.text.strip()
+                                        break
+                                except:
+                                    continue
                 except:
                     pass
 
@@ -704,12 +772,23 @@ class MultatuliScraperV2:
                                     except:
                                         pass
 
-                                    try:
-                                        date_elem = author_container.find_element(By.CSS_SELECTOR, "span.tgl")
-                                        if date_elem:
-                                            article['date'] = date_elem.text.strip()
-                                    except:
-                                        pass
+                                    # Try multiple date selectors
+                                    date_selectors = [
+                                        "span.tgl",
+                                        "span.date",
+                                        "time",
+                                        "span[class*='date' i]",
+                                        ".elementor-post-date",
+                                        "span.elementor-post-info__item--type-date"
+                                    ]
+                                    for selector in date_selectors:
+                                        try:
+                                            date_elem = author_container.find_element(By.CSS_SELECTOR, selector)
+                                            if date_elem and date_elem.text.strip():
+                                                article['date'] = date_elem.text.strip()
+                                                break
+                                        except:
+                                            continue
                             except:
                                 pass
 
