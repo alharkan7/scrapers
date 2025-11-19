@@ -25,20 +25,10 @@ class MongabayScraper:
     def __init__(self, base_url="https://mongabay.co.id", headless=True):
         self.base_url = base_url
         self.session = requests.Session()
-        # Set more realistic headers to avoid being blocked
+        # Set minimal headers to avoid being blocked while ensuring proper encoding
+        # Note: Removed 'br' from Accept-Encoding as requests doesn't handle Brotli well
         self.session.headers.update({
             'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/118.0.0.0 Safari/537.36',
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
-            'Accept-Language': 'en-US,en;q=0.9,id;q=0.8',
-            'Accept-Encoding': 'gzip, deflate, br',
-            'DNT': '1',
-            'Connection': 'keep-alive',
-            'Upgrade-Insecure-Requests': '1',
-            'Sec-Fetch-Dest': 'document',
-            'Sec-Fetch-Mode': 'navigate',
-            'Sec-Fetch-Site': 'none',
-            'Sec-Fetch-User': '?1',
-            'Cache-Control': 'max-age=0',
         })
 
         # Setup Selenium WebDriver
