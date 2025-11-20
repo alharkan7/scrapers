@@ -233,12 +233,15 @@ class MultatuliFullArticleScraper:
 
         return article_data
 
-    def scrape_articles_from_json(self, json_file):
+    def scrape_articles_from_json(self, json_file, output_json=None, output_csv=None):
         """
         Scrape full articles from URLs listed in a JSON file.
+        Writes articles incrementally to output files as they are scraped.
 
         Parameters:
         - json_file (str): Path to JSON file containing article URLs
+        - output_json (str): Path to output JSON file (optional)
+        - output_csv (str): Path to output CSV file (optional)
 
         Returns:
         - list: List of scraped full article data
@@ -262,6 +265,23 @@ class MultatuliFullArticleScraper:
 
         full_articles = []
 
+        # Initialize CSV file with header if output_csv is provided
+        csv_file_handle = None
+        csv_writer = None
+        if output_csv:
+            csv_file_handle = open(output_csv, 'w', newline='', encoding='utf-8')
+            fieldnames = ['title', 'cover_image_url', 'cover_image_caption', 'author', 'date', 'category', 'url', 'scraped_at', 'full_text']
+            csv_writer = csv.DictWriter(csv_file_handle, fieldnames=fieldnames)
+            csv_writer.writeheader()
+            csv_file_handle.flush()
+            print(f"✓ Initialized CSV file: {output_csv}")
+
+        # Initialize JSON file with empty array if output_json is provided
+        if output_json:
+            with open(output_json, 'w', encoding='utf-8') as f:
+                json.dump([], f)
+            print(f"✓ Initialized JSON file: {output_json}")
+
         try:
             for i, article in enumerate(articles_data, 1):
                 url = article.get('url')
@@ -277,6 +297,29 @@ class MultatuliFullArticleScraper:
                     merged_data = {**article, **full_article_data}
                     full_articles.append(merged_data)
                     print(f"✓ Successfully scraped: {full_article_data.get('title', 'Unknown title')[:60]}...")
+                    
+                    # Write to CSV immediately
+                    if csv_writer:
+                        csv_row = {
+                            'title': merged_data.get('title', ''),
+                            'cover_image_url': merged_data.get('cover_image_url', ''),
+                            'cover_image_caption': merged_data.get('cover_image_caption', ''),
+                            'author': merged_data.get('author', ''),
+                            'date': merged_data.get('date', ''),
+                            'category': merged_data.get('category', ''),
+                            'url': merged_data.get('url', ''),
+                            'scraped_at': merged_data.get('scraped_at', ''),
+                            'full_text': merged_data.get('full_text', '')
+                        }
+                        csv_writer.writerow(csv_row)
+                        csv_file_handle.flush()
+                    
+                    # Update JSON file immediately
+                    if output_json:
+                        with open(output_json, 'w', encoding='utf-8') as f:
+                            json.dump(full_articles, f, ensure_ascii=False, indent=2)
+                    
+                    print(f"  → Saved to output files")
                 else:
                     print(f"✗ Failed to scrape article: {url}")
                     # Still add the basic data if scraping failed
@@ -285,6 +328,10 @@ class MultatuliFullArticleScraper:
                 # Add delay to be respectful to the server
                 time.sleep(2)
         finally:
+            # Close CSV file if it was opened
+            if csv_file_handle:
+                csv_file_handle.close()
+            
             # Always cleanup driver
             self.teardown_driver()
 
@@ -328,6 +375,7 @@ class MultatuliFullArticleScraper:
 def scrape_multatuli_full_articles(json_file, output='multatuli_full_articles', output_format='both', headless=True):
     """
     Scrape full Multatuli articles from URLs in a JSON file.
+    Articles are written incrementally to output files as they are scraped.
 
     Parameters:
     - json_file (str): Path to JSON file containing article URLs
@@ -344,23 +392,26 @@ def scrape_multatuli_full_articles(json_file, output='multatuli_full_articles', 
     if not os.path.exists(json_file):
         raise FileNotFoundError(f"JSON file not found: {json_file}")
 
-    scraper = MultatuliFullArticleScraper(headless=headless)
-    articles = scraper.scrape_articles_from_json(json_file)
-
     # Generate readable timestamp for filename
     timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 
-    print(f"\nTotal full articles scraped: {len(articles)}")
-
+    # Prepare output file paths based on format
+    output_json_file = None
+    output_csv_file = None
+    
     if output_format in ['json', 'both']:
-        json_file = f"{output}_{timestamp}.json"
-        scraper.save_to_json(articles, json_file)
-        print(f"Full articles saved to {json_file}")
-
+        output_json_file = f"{output}_{timestamp}.json"
+        print(f"Will save JSON to: {output_json_file}")
+    
     if output_format in ['csv', 'both']:
-        csv_file = f"{output}_{timestamp}.csv"
-        scraper.save_to_csv(articles, csv_file)
-        print(f"Full articles saved to {csv_file}")
+        output_csv_file = f"{output}_{timestamp}.csv"
+        print(f"Will save CSV to: {output_csv_file}")
+
+    scraper = MultatuliFullArticleScraper(headless=headless)
+    articles = scraper.scrape_articles_from_json(json_file, output_json=output_json_file, output_csv=output_csv_file)
+
+    print(f"\nTotal full articles scraped: {len(articles)}")
+    print(f"✓ All articles have been saved incrementally to output files")
 
     return articles
 

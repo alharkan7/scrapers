@@ -1,0 +1,7 @@
+Actor,URL
+YLBHI,https://ylbhi.or.id
+ICJR,https://icjr.or.id
+KontraS,https://kontras.org
+LBH Jakarta,https://bantuanhukum.or.id
+IJRS,https://ijrs.or.id
+PBHI,https://pbhi.or.id
