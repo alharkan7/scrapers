@@ -43,3 +43,6 @@ wheels/
 # OS
 .DS_Store
 Thumbs.db
+
+# Google Docs
+token.pickle
