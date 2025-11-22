@@ -46,3 +46,5 @@ Thumbs.db
 
 # Google Docs
 token.pickle
+
+.env
