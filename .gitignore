@@ -47,4 +47,21 @@ Thumbs.db
 # Google Docs
 token.pickle
 
+# X/Twitter Scraper sensitive files
+x-scraper/accounts.txt
+x-scraper/accounts.db
+x-scraper/accounts/
+**/accounts.txt
+**/accounts.db
+
+# General credentials and secrets
 .env
+.env.local
+.env.*.local
+*.key
+*.pem
+*.p12
+*.pfx
+secrets.json
+credentials.json
+client_secret*.json

@@ -1,0 +1,10 @@
+# Example accounts file format
+# Copy this file to accounts.txt and fill in your account details
+# Format: username:password:email:email_password
+# Note: Use dedicated accounts for scraping, not personal accounts
+
+scraper_account1:your_password123:your_email@gmail.com:your_email_password123
+scraper_account2:your_password456:your_email2@gmail.com:your_email_password456
+
+# Optional: With cookies (if you have them)
+# scraper_account3:your_password789:your_email3@gmail.com:your_email_password789:cookies_data_here
