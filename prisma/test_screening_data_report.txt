@@ -1,0 +1,75 @@
+================================================================================
+SYSTEMATIC LITERATURE REVIEW - ANALYSIS REPORT
+================================================================================
+
+Generated: 2025-11-23 20:47:07
+Database: Scopus
+Search Date: 2025-11-23
+
+SEARCH RESULTS SUMMARY
+----------------------------------------
+Total records identified: 1354
+Duplicate records removed: 3
+Unique records screened: 1351
+
+SCREENING STAGE DISTRIBUTION
+----------------------------------------
+excluded                      :     3 (  0.2%)
+identified                    :  1351 ( 99.8%)
+
+EXCLUSION REASONS
+----------------------------------------
+Duplicate record                        :     3 (100.0%)
+
+PUBLICATION YEAR DISTRIBUTION
+----------------------------------------
+2015: 68
+2016: 80
+2017: 91
+2018: 93
+2019: 96
+2020: 144
+2021: 122
+2022: 157
+2023: 138
+2024: 185
+2025: 177
+2026: 3
+
+DOCUMENT TYPES
+----------------------------------------
+Article                       :  1354 (100.0%)
+
+TOP 30 KEYWORDS
+----------------------------------------
+social network analysis                 :   763
+nan                                     :    86
+social media                            :    77
+twitter                                 :    65
+social networks                         :    53
+network analysis                        :    43
+networks                                :    37
+social capital                          :    37
+social network analysis (sna)           :    31
+social network                          :    30
+collaboration                           :    24
+covid-19                                :    23
+sna                                     :    21
+homophily                               :    20
+mixed methods                           :    20
+governance                              :    18
+climate change                          :    17
+sentiment analysis                      :    15
+topic modeling                          :    14
+policy networks                         :    14
+content analysis                        :    14
+text mining                             :    13
+higher education                        :    13
+sustainability                          :    13
+china                                   :    12
+natural language processing             :    12
+european union                          :    12
+criminal networks                       :    11
+friendship                              :    11
+community detection                     :    11
+

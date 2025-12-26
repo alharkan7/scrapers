@@ -1,0 +1,17 @@
+INCLUSION CRITERIA:
+- Study focuses on Communication Network Theory (CNT) or communication networks from a social science perspective
+- Study addresses theoretical critiques of CNT regarding agency, meaning-making, or temporal dynamics
+- Study discusses structural determinism, semantic/meaning issues, or dynamic network processes in communication contexts
+- Study examines the "dark side" of networks (negative ties, collaborative drag, power dynamics, surveillance)
+- Study proposes theoretical innovations to CNT (e.g., CCO, semantic network analysis, dynamic network analysis, multiplex networks)
+- Study is empirical research or theoretical/conceptual work published in peer-reviewed venues (2015-2025)
+- Study is accessible in English and contains sufficient methodological or theoretical detail
+
+EXCLUSION CRITERIA:
+- Study focuses purely on technical/computer networks without communication theory perspective
+- Study is about social network analysis in domains other than communication (e.g., pure epidemiology, biology)
+- Study treats networks only as methodological tools without theoretical engagement
+- Study is a book review, editorial, conference abstract, or news article
+- Study predates 2015 (outside review period)
+- Study lacks theoretical depth or is purely descriptive
+- Study is not in English or full text is not accessible

@@ -1,0 +1,14 @@
+# Core Dependencies (Required)
+pandas>=2.0.0
+numpy>=1.24.0
+
+# Optional Dependencies (Recommended)
+rapidfuzz>=3.0.0          # Faster fuzzy string matching for duplicate detection
+matplotlib>=3.7.0         # Visualization
+seaborn>=0.12.0          # Statistical visualization
+openpyxl>=3.1.0          # Excel export support
+
+# For development
+pytest>=7.4.0            # Testing
+black>=23.0.0            # Code formatting
+
