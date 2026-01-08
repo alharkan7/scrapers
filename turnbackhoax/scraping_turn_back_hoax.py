@@ -24,8 +24,8 @@ import argparse
 # ============================================================================
 
 # Page range for scraping headlines
-START_PAGE = 1
-END_PAGE = 2
+START_PAGE = 13
+END_PAGE = 663
 
 # Google Sheet configuration for article scraping
 SHEET_ID = "1hX-iWkJslmBHTMvYE-0fLs9I46vvm_Er3sfrn9pBMms"
@@ -134,13 +134,14 @@ def scrape_turnbackhoax_page(page_number):
         print(f"\nUnexpected error on page {page_number}: {e}")
         return None
 
-def scrape_all_pages(start_page=None, end_page=None):
+def scrape_all_pages(start_page=None, end_page=None, output_file=None):
     """
     Scrape headlines from multiple pages of turnbackhoax.id
     
     Args:
         start_page: Starting page number (uses START_PAGE if None)
         end_page: Ending page number (uses END_PAGE if None)
+        output_file: Output CSV file path (creates new if None)
         
     Returns:
         DataFrame with all scraped data or None if error occurs
@@ -151,13 +152,47 @@ def scrape_all_pages(start_page=None, end_page=None):
     if end_page is None:
         end_page = END_PAGE
 
-    # Initialize empty list to store DataFrames from each page
-    all_data = []
+    # Determine output filename
+    if output_file is None:
+        timestamp = time.strftime("%Y%m%d_%H%M%S")
+        output_file = f'turnbackhoax_headlines_{timestamp}.csv'
+    
+    # Check for existing data and determine which pages to skip
+    existing_pages = set()
+    file_exists = False
+    if pd.io.common.file_exists(output_file):
+        try:
+            existing_df = pd.read_csv(output_file, encoding='utf-8')
+            if 'page_number' in existing_df.columns:
+                existing_pages = set(existing_df['page_number'].unique())
+                print(f"Found existing file: {output_file}")
+                print(f"Already scraped pages: {sorted(existing_pages)}")
+                file_exists = True
+        except Exception as e:
+            print(f"Warning: Could not read existing file: {e}")
+    
+    # Create CSV with headers if it doesn't exist
+    if not file_exists:
+        # Create empty DataFrame with correct columns
+        empty_df = pd.DataFrame(columns=['title', 'url', 'preview', 'image_url', 'date', 'category', 'page_number'])
+        empty_df.to_csv(output_file, index=False, encoding='utf-8')
+        print(f"Created new output file: {output_file}")
+    
+    # Track statistics
+    total_articles = 0
+    pages_scraped = 0
+    pages_skipped = 0
 
     # Create progress bar
     pbar = tqdm(range(start_page, end_page + 1), desc="Scraping pages")
 
     for page_num in pbar:
+        # Skip if page already exists
+        if page_num in existing_pages:
+            pbar.set_description(f"Skipping page {page_num} (already scraped)")
+            pages_skipped += 1
+            continue
+        
         # Update progress bar description
         pbar.set_description(f"Scraping page {page_num}")
 
@@ -167,27 +202,31 @@ def scrape_all_pages(start_page=None, end_page=None):
         if df is not None and not df.empty:
             # Add page number column
             df['page_number'] = page_num
-            all_data.append(df)
+            
+            # Append to CSV immediately
+            df.to_csv(output_file, mode='a', header=False, index=False, encoding='utf-8')
+            
+            total_articles += len(df)
+            pages_scraped += 1
+            pbar.set_postfix({'articles': total_articles, 'pages': pages_scraped})
 
         # Add a delay between requests to be polite to the server
         time.sleep(1)
 
-    if all_data:
-        # Combine all DataFrames
-        final_df = pd.concat(all_data, ignore_index=True)
+    print(f"\n{'='*70}")
+    print(f"Scraping completed!")
+    print(f"Pages scraped: {pages_scraped}")
+    print(f"Pages skipped: {pages_skipped}")
+    print(f"Total articles scraped: {total_articles}")
+    print(f"Data saved to: {output_file}")
+    print(f"{'='*70}")
 
-        # Save to CSV with UTF-8 encoding
-        timestamp = time.strftime("%Y%m%d_%H%M%S")
-        filename = f'turnbackhoax_headlines_{timestamp}.csv'
-        final_df.to_csv(filename, index=False, encoding='utf-8')
-
-        print(f"\nScraping completed successfully!")
-        print(f"Total articles scraped: {len(final_df)}")
-        print(f"Data saved to: {filename}")
-
+    # Return the complete DataFrame
+    try:
+        final_df = pd.read_csv(output_file, encoding='utf-8')
         return final_df
-    else:
-        print("\nNo data was scraped successfully.")
+    except Exception as e:
+        print(f"Warning: Could not read final CSV: {e}")
         return None
 
 
@@ -388,61 +427,134 @@ def scrape_article(url):
             'error': str(e)
         }
 
-def scrape_articles_from_csv(csv_file):
+def scrape_articles_from_csv(csv_file, output_file=None):
     """
     Scrape full article content from URLs in a local CSV file (from Step 1)
     
     Args:
         csv_file: Path to the CSV file containing article URLs
+        output_file: Output CSV file path (creates new if None)
         
     Returns:
         DataFrame with scraped articles or None if error occurs
     """
     try:
         # Read local CSV file
-        print(f"Reading CSV file: {csv_file}")
-        df = pd.read_csv(csv_file)
+        print(f"Reading input CSV file: {csv_file}")
+        df = pd.read_csv(csv_file, encoding='utf-8')
         
         # Check if 'url' column exists
         if 'url' not in df.columns:
             print("Error: CSV file must have a 'url' column")
             return None
         
-        # Get all URLs
-        urls = df['url'].dropna().tolist()
-        print(f"Found {len(urls)} URLs to process")
+        # Determine output filename
+        if output_file is None:
+            timestamp = time.strftime("%Y%m%d_%H%M%S")
+            output_file = f'turnbackhoax_full_articles_{timestamp}.csv'
         
-        # Initialize list to store results
-        results = []
+        # Check for existing data and determine which URLs to skip
+        existing_urls = set()
+        file_exists = False
+        existing_df = None
+        
+        if pd.io.common.file_exists(output_file):
+            try:
+                existing_df = pd.read_csv(output_file, encoding='utf-8')
+                if 'url' in existing_df.columns:
+                    # Find URLs that have full_title (indicating they were fully scraped)
+                    scraped_mask = existing_df['url'].notna()
+                    if 'full_title' in existing_df.columns:
+                        scraped_mask = scraped_mask & existing_df['full_title'].notna()
+                    existing_urls = set(existing_df.loc[scraped_mask, 'url'])
+                    print(f"Found existing file: {output_file}")
+                    print(f"Already scraped: {len(existing_urls)} URLs")
+                    file_exists = True
+            except Exception as e:
+                print(f"Warning: Could not read existing file: {e}")
+        
+        # Get URLs to scrape
+        all_urls = df['url'].dropna().unique().tolist()
+        urls_to_scrape = [url for url in all_urls if url not in existing_urls]
+        
+        print(f"Total URLs in input: {len(all_urls)}")
+        print(f"URLs to scrape: {len(urls_to_scrape)}")
+        print(f"URLs to skip: {len(existing_urls)}")
+        
+        # Create CSV with headers if it doesn't exist
+        if not file_exists:
+            # Get all columns from input + article columns
+            article_columns = ['full_title', 'category', 'date', 'media', 'cover_image_url', 
+                             'hasil_periksa_fakta', 'kategori_berita', 'sumber', 
+                             'narasi', 'penjelasan', 'kesimpulan', 'referensi']
+            
+            # Rename conflicting columns from input
+            all_columns = []
+            for col in df.columns:
+                if col in ['category', 'date']:
+                    all_columns.append(f'{col}_original')
+                else:
+                    all_columns.append(col)
+            all_columns.extend(article_columns)
+            
+            empty_df = pd.DataFrame(columns=all_columns)
+            empty_df.to_csv(output_file, index=False, encoding='utf-8')
+            print(f"Created new output file: {output_file}")
+        
+        # Track statistics
+        articles_scraped = 0
+        articles_skipped = len(existing_urls)
         
         # Process each URL with progress bar
-        for url in tqdm(urls, desc="Scraping articles"):
+        for url in tqdm(urls_to_scrape, desc="Scraping articles"):
+            # Scrape the article
             result = scrape_article(url)
-            results.append(result)
-            time.sleep(1)  # Be polite to the server
+            
+            # Get the row(s) from input CSV for this URL
+            url_rows = df[df['url'] == url].copy()
+            
+            # Rename conflicting columns
+            if 'category' in url_rows.columns:
+                url_rows.rename(columns={'category': 'category_original'}, inplace=True)
+            if 'date' in url_rows.columns:
+                url_rows.rename(columns={'date': 'date_original'}, inplace=True)
+            
+            # Add scraped data to each row
+            for key, value in result.items():
+                if key != 'url':
+                    url_rows[key] = value
+            
+            # Append to CSV immediately
+            url_rows.to_csv(output_file, mode='a', header=False, index=False, encoding='utf-8')
+            
+            articles_scraped += 1
+            
+            # Add a delay between requests to be polite to the server
+            time.sleep(1)
         
-        # Create DataFrame from results
-        results_df = pd.DataFrame(results)
+        print(f"\n{'='*70}")
+        print(f"Scraping completed!")
+        print(f"Articles scraped: {articles_scraped}")
+        print(f"Articles skipped: {articles_skipped}")
+        print(f"Total articles in file: {articles_scraped + articles_skipped}")
+        print(f"Data saved to: {output_file}")
+        print(f"{'='*70}")
         
-        # Merge with original data to include title, date, etc.
-        final_df = df.merge(results_df, on='url', how='left', suffixes=('_original', ''))
-        
-        # Save to CSV with timestamp and UTF-8 encoding
-        timestamp = time.strftime("%Y%m%d_%H%M%S")
-        filename = f'turnbackhoax_full_articles_{timestamp}.csv'
-        final_df.to_csv(filename, index=False, encoding='utf-8')
-        
-        print(f"\nScraping completed successfully!")
-        print(f"Total articles scraped: {len(results_df)}")
-        print(f"Data saved to: {filename}")
-        
-        return final_df
+        # Return the complete DataFrame
+        try:
+            final_df = pd.read_csv(output_file, encoding='utf-8')
+            return final_df
+        except Exception as e:
+            print(f"Warning: Could not read final CSV: {e}")
+            return None
     
     except FileNotFoundError:
         print(f"Error: File '{csv_file}' not found")
         return None
     except Exception as e:
         print(f"Error processing CSV file: {e}")
+        import traceback
+        traceback.print_exc()
         return None
 
 def scrape_articles_from_google_sheet(sheet_id=None, sheet_name=None):
@@ -611,8 +723,17 @@ Examples:
   # Scrape headlines from pages 1-10
   python3 scraping_turn_back_hoax.py headlines --start 1 --end 10
   
-  # Scrape full articles from a CSV file (output from Step 1)
-  python3 scraping_turn_back_hoax.py articles --csv turnbackhoax_headlines_20260108_143901.csv
+  # Scrape headlines with specific output file (resumes if exists)
+  python3 scraping_turn_back_hoax.py headlines --start 1 --end 100 --output headlines.csv
+  
+  # Resume scraping (skips already scraped pages)
+  python3 scraping_turn_back_hoax.py headlines --start 1 --end 100 --output headlines.csv
+  
+  # Scrape full articles from a CSV file
+  python3 scraping_turn_back_hoax.py articles --csv headlines.csv
+  
+  # Scrape full articles with specific output file (resumes if exists)
+  python3 scraping_turn_back_hoax.py articles --csv headlines.csv --output full_articles.csv
   
   # Scrape full articles from Google Sheet
   python3 scraping_turn_back_hoax.py articles
@@ -647,6 +768,12 @@ Examples:
     )
     
     parser.add_argument(
+        '--output',
+        type=str,
+        help='Output CSV file path (resumes if exists)'
+    )
+    
+    parser.add_argument(
         '--sheet-id',
         type=str,
         help='Google Sheet ID (overrides config)'
@@ -668,7 +795,13 @@ Examples:
     if args.mode == 'headlines':
         print("Mode: Scraping Headlines")
         print("-" * 70)
-        df = scrape_all_pages(start_page=args.start, end_page=args.end)
+        if args.output:
+            print(f"Output file: {args.output}")
+        df = scrape_all_pages(
+            start_page=args.start, 
+            end_page=args.end,
+            output_file=args.output
+        )
         if df is not None:
             print("\nSample of scraped data:")
             print(df.head())
@@ -680,7 +813,9 @@ Examples:
         # Check if CSV file is provided
         if args.csv:
             print(f"Source: Local CSV file ({args.csv})")
-            df = scrape_articles_from_csv(args.csv)
+            if args.output:
+                print(f"Output file: {args.output}")
+            df = scrape_articles_from_csv(args.csv, output_file=args.output)
         else:
             print("Source: Google Sheet")
             df = scrape_articles_from_google_sheet(
