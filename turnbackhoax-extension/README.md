@@ -30,3 +30,16 @@ A Chrome extension to manually save headlines from TurnBackHoax article pages.
 - The extension stores data in Chrome's local storage
 - Data persists until you click "Clear All Data" or uninstall the extension
 - The CSV format matches the Python scraper output for easy merging
+
+## Troubleshooting
+
+**If the extension doesn't work after installation or updates:**
+1. Go to `chrome://extensions/`
+2. Find "TurnBackHoax Headline Scraper"
+3. Click the refresh/reload icon (⟳) on the extension card
+4. Try again
+
+**If you see errors:**
+- Make sure you're on a valid TurnBackHoax articles page (e.g., `https://turnbackhoax.id/articles`)
+- Check that Developer mode is enabled in `chrome://extensions/`
+- Try reloading the extension
