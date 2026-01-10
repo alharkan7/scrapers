@@ -72,13 +72,13 @@ def get_date_ranges(start_year=YEAR_START, end_year=YEAR_END, start_month=1, end
     Only generates ranges for months that exist in the MONTHS list.
     
     Args:
-        start_year: Starting year (default: 2025)
-        end_year: Ending year (default: 2025)
+        start_year: Starting year
+        end_year: Ending year
         start_month: Starting month (1-12)
         end_month: Ending month (1-12, default: 12)
         
     Returns:
-        List of date range strings like ["January+2025", "December+2024", ...]
+        List of date range strings like ["January+2025", "February+2025", ...]
     """
     if end_year is None:
         end_year = datetime.now().year
@@ -87,13 +87,13 @@ def get_date_ranges(start_year=YEAR_START, end_year=YEAR_END, start_month=1, end
     
     date_ranges = []
     
-    # Generate in reverse chronological order (newest first)
+    # Generate in ascending chronological order (oldest first)
     # Only include months that exist in the MONTHS list
-    for year in range(end_year, start_year - 1, -1):
-        month_start = end_month if year == end_year else 12
-        month_end = start_month if year == start_year else 1
+    for year in range(start_year, end_year + 1):
+        month_start = start_month if year == start_year else 1
+        month_end = end_month if year == end_year else 12
         
-        for month in range(month_start, month_end - 1, -1):
+        for month in range(month_start, month_end + 1):
             # Check if this month exists in the MONTHS list
             month_name = get_month_name(month)
             if month_name and month_name in MONTHS:
