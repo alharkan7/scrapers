@@ -17,6 +17,13 @@ import time
 from tqdm import tqdm
 import re
 import argparse
+from selenium import webdriver
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.chrome.options import Options
+from selenium.common.exceptions import TimeoutException, NoSuchElementException, ElementClickInterceptedException
+from datetime import datetime
 
 
 # ============================================================================
@@ -37,197 +44,657 @@ HEADERS = {
 }
 
 # ============================================================================
-# STEP 1: SCRAPING HEADLINES
+# STEP 1: SCRAPING HEADLINES (SELENIUM-BASED)
 # ============================================================================
 
-def scrape_turnbackhoax_page(page_number):
+# Month names for date range parameter
+MONTHS = [
+    "January", 
+    "February", 
+    "March",
+    "April", 
+    "May", 
+    "June",
+    "July", 
+    "August", 
+    "September", 
+    "October",
+    "November", 
+    "December"
+]
+
+YEAR_START = 2025
+YEAR_END = 2025
+
+def get_date_ranges(start_year=YEAR_START, end_year=YEAR_END, start_month=1, end_month=None):
     """
-    Scrape headlines and metadata from a single page of turnbackhoax.id
+    Generate list of date ranges (Month+Year) for scraping.
+    Only generates ranges for months that exist in the MONTHS list.
     
     Args:
-        page_number: The page number to scrape
+        start_year: Starting year (default: 2025)
+        end_year: Ending year (default: 2025)
+        start_month: Starting month (1-12)
+        end_month: Ending month (1-12, default: 12)
         
     Returns:
-        DataFrame with scraped data or None if error occurs
+        List of date range strings like ["January+2025", "December+2024", ...]
     """
-    url = f"https://turnbackhoax.id/articles?category=all&&page={page_number}"
+    if end_year is None:
+        end_year = datetime.now().year
+    if end_month is None:
+        end_month = 12
+    
+    date_ranges = []
+    
+    # Generate in reverse chronological order (newest first)
+    # Only include months that exist in the MONTHS list
+    for year in range(end_year, start_year - 1, -1):
+        month_start = end_month if year == end_year else 12
+        month_end = start_month if year == start_year else 1
+        
+        for month in range(month_start, month_end - 1, -1):
+            # Check if this month exists in the MONTHS list
+            month_name = get_month_name(month)
+            if month_name and month_name in MONTHS:
+                date_ranges.append(f"{month_name}+{year}")
+    
+    return date_ranges
 
+
+def get_month_name(month_num):
+    """Get month name from month number (1-12)."""
+    all_months = [
+        "January", "February", "March", "April", "May", "June",
+        "July", "August", "September", "October", "November", "December"
+    ]
+    if 1 <= month_num <= 12:
+        return all_months[month_num - 1]
+    return None
+
+
+def setup_selenium_driver(headless=True):
+    """
+    Set up and return a Selenium Chrome WebDriver.
+    
+    Args:
+        headless: Whether to run browser in headless mode
+        
+    Returns:
+        WebDriver instance
+    """
+    chrome_options = Options()
+    if headless:
+        chrome_options.add_argument("--headless=new")
+    chrome_options.add_argument("--no-sandbox")
+    chrome_options.add_argument("--disable-dev-shm-usage")
+    chrome_options.add_argument("--disable-gpu")
+    chrome_options.add_argument("--window-size=1920,1080")
+    chrome_options.add_argument("--disable-blink-features=AutomationControlled")
+    chrome_options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+    
+    driver = webdriver.Chrome(options=chrome_options)
+    driver.implicitly_wait(10)
+    return driver
+
+
+def parse_articles_from_page(driver):
+    """
+    Parse article data from the current page loaded in the driver.
+    
+    Args:
+        driver: Selenium WebDriver with page loaded
+        
+    Returns:
+        List of dictionaries containing article data
+    """
+    articles_data = []
+    
+    # Wait for articles to load
     try:
-        response = requests.get(url, headers=HEADERS)
-        response.raise_for_status()
-
-        soup = BeautifulSoup(response.content, 'html.parser')
-
-        data = {
-            'title': [],
-            'url': [],
-            'preview': [],
-            'image_url': [],
-            'date': [],
-            'category': []
+        WebDriverWait(driver, 10).until(
+            EC.presence_of_element_located((By.CSS_SELECTOR, "div.news-card-h-alt"))
+        )
+    except TimeoutException:
+        print("Warning: Timeout waiting for articles to load")
+        return articles_data
+    
+    # Get page source and parse with BeautifulSoup
+    soup = BeautifulSoup(driver.page_source, 'html.parser')
+    articles = soup.find_all('div', class_='news-card-h-alt')
+    
+    for article in articles:
+        article_data = {
+            'title': '',
+            'url': '',
+            'preview': '',
+            'image_url': '',
+            'date': '',
+            'category': ''
         }
-
-        # Updated selector for new website structure
-        articles = soup.find_all('div', class_='news-card-h-alt')
-
-        for article in articles:
-            # Extract title and URL
-            title_element = article.find('h2')
-            link_element = article.find('a', href=True)
-            
-            if title_element:
-                # Get the full title (from the span that's visible on larger screens)
-                title_span = title_element.find('span', class_='hidden')
-                if title_span:
-                    title_text = title_span.text.strip()
-                else:
-                    title_text = title_element.text.strip()
-                data['title'].append(title_text)
+        
+        # Extract title and URL
+        title_element = article.find('h2')
+        link_element = article.find('a', href=True)
+        
+        if title_element:
+            title_span = title_element.find('span', class_='hidden')
+            if title_span:
+                article_data['title'] = title_span.text.strip()
             else:
-                data['title'].append('')
-            
-            if link_element:
-                data['url'].append(link_element['href'])
+                article_data['title'] = title_element.text.strip()
+        
+        if link_element:
+            href = link_element['href']
+            # Make sure URL is absolute
+            if not href.startswith('http'):
+                href = f"https://turnbackhoax.id{href}"
+            article_data['url'] = href
+
+        # Extract preview text
+        preview_element = article.find('p')
+        if preview_element:
+            preview_span = preview_element.find('span', class_='hidden')
+            if preview_span:
+                article_data['preview'] = preview_span.text.strip()
             else:
-                data['url'].append('')
+                article_data['preview'] = preview_element.text.strip()
 
-            # Extract preview text
-            preview_element = article.find('p')
-            if preview_element:
-                # Get the full preview (from the span that's visible on larger screens)
-                preview_span = preview_element.find('span', class_='hidden')
-                if preview_span:
-                    preview_text = preview_span.text.strip()
-                else:
-                    preview_text = preview_element.text.strip()
-                data['preview'].append(preview_text)
-            else:
-                data['preview'].append('')
+        # Extract image URL
+        image_element = article.find('img')
+        if image_element and image_element.get('src'):
+            article_data['image_url'] = image_element['src']
 
-            # Extract image URL
-            image_element = article.find('img')
-            if image_element and image_element.get('src'):
-                data['image_url'].append(image_element['src'])
-            else:
-                data['image_url'].append('')
+        # Extract date
+        date_span = article.find('span', class_='text-light-black')
+        if date_span:
+            article_data['date'] = date_span.text.strip()
 
-            # Extract date
-            date_span = article.find('span', class_='text-light-black')
-            if date_span:
-                data['date'].append(date_span.text.strip())
-            else:
-                data['date'].append('')
+        # Extract category
+        category_link = article.find('a', href=lambda x: x and 'category=' in str(x))
+        if category_link:
+            article_data['category'] = category_link.text.strip()
+        
+        articles_data.append(article_data)
+    
+    return articles_data
 
-            # Extract category
-            category_link = article.find('a', href=lambda x: x and 'category=' in str(x))
-            if category_link:
-                data['category'].append(category_link.text.strip())
-            else:
-                data['category'].append('')
 
-        return pd.DataFrame(data)
-
-    except requests.RequestException as e:
-        print(f"\nError on page {page_number}: {e}")
-        return None
-    except Exception as e:
-        print(f"\nUnexpected error on page {page_number}: {e}")
-        return None
-
-def scrape_all_pages(start_page=None, end_page=None, output_file=None):
+def get_total_pages(driver):
     """
-    Scrape headlines from multiple pages of turnbackhoax.id
+    Get the total number of pages for the current date range.
     
     Args:
-        start_page: Starting page number (uses START_PAGE if None)
-        end_page: Ending page number (uses END_PAGE if None)
-        output_file: Output CSV file path (creates new if None)
+        driver: Selenium WebDriver with page loaded
         
     Returns:
-        DataFrame with all scraped data or None if error occurs
+        Total number of pages (int)
     """
-    # Use global variables if not provided
-    if start_page is None:
-        start_page = START_PAGE
-    if end_page is None:
-        end_page = END_PAGE
+    try:
+        # Look for the 'last' pagination button which has the total page count
+        last_button = driver.find_element(By.CSS_SELECTOR, "button.nav-item.sprites-last")
+        total_pages = int(last_button.get_attribute("data-page"))
+        return total_pages
+    except (NoSuchElementException, ValueError):
+        # Try to find from total-pages data attribute
+        try:
+            pagination_nav = driver.find_element(By.CSS_SELECTOR, "[data-total-pages]")
+            return int(pagination_nav.get_attribute("data-total-pages"))
+        except:
+            return 1
 
+
+def is_next_button_active(driver):
+    """
+    Check if the 'next' pagination button is active (not disabled).
+    
+    Args:
+        driver: Selenium WebDriver
+        
+    Returns:
+        True if next button is active, False if disabled or not found
+    """
+    try:
+        next_button = driver.find_element(By.CSS_SELECTOR, "button.nav-item.sprites-next")
+        # Check if button has 'disabled' attribute or 'disabled' class
+        is_disabled = next_button.get_attribute("disabled") is not None
+        has_disabled_class = "disabled" in next_button.get_attribute("class")
+        return not (is_disabled or has_disabled_class)
+    except NoSuchElementException:
+        return False
+
+
+def click_next_button(driver, max_wait=10, max_retries=3):
+    """
+    Click the 'next' pagination button to go to the next page.
+    Waits for the content to actually change after clicking.
+    Retries if the content doesn't change.
+    
+    Args:
+        driver: Selenium WebDriver
+        max_wait: Maximum seconds to wait for content to change per attempt
+        max_retries: Maximum number of retry attempts
+        
+    Returns:
+        True if successfully clicked and content changed, False otherwise
+    """
+    for attempt in range(max_retries):
+        try:
+            # First check if the next button is active
+            if not is_next_button_active(driver):
+                return False
+            
+            # Get the first article URL before clicking (to detect change)
+            try:
+                first_article_before = driver.find_element(By.CSS_SELECTOR, "div.news-card-h-alt a")
+                first_url_before = first_article_before.get_attribute("href")
+            except NoSuchElementException:
+                first_url_before = None
+            
+            # Also get the current page number before clicking
+            try:
+                current_page_before = get_current_page(driver)
+            except:
+                current_page_before = 0
+            
+            # Find and click the next button
+            next_button = driver.find_element(By.CSS_SELECTOR, "button.nav-item.sprites-next:not(.disabled)")
+            
+            # Scroll button into view if needed
+            driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", next_button)
+            time.sleep(0.3)
+            
+            # Click using JavaScript to avoid interception issues
+            driver.execute_script("arguments[0].click();", next_button)
+            
+            # Wait for content to change (poll until first article URL changes or page number changes)
+            start_time = time.time()
+            content_changed = False
+            
+            while time.time() - start_time < max_wait:
+                time.sleep(0.5)
+                
+                # Check if page number changed
+                try:
+                    current_page_after = get_current_page(driver)
+                    if current_page_after > current_page_before:
+                        content_changed = True
+                        break
+                except:
+                    pass
+                
+                # Check if first article URL changed
+                try:
+                    first_article_after = driver.find_element(By.CSS_SELECTOR, "div.news-card-h-alt a")
+                    first_url_after = first_article_after.get_attribute("href")
+                    if first_url_after != first_url_before:
+                        content_changed = True
+                        break
+                except NoSuchElementException:
+                    pass
+            
+            if content_changed:
+                # Additional small delay to ensure all AJAX content is loaded
+                time.sleep(1)
+                return True
+            
+            # Content didn't change, retry
+            if attempt < max_retries - 1:
+                print(f"Retry {attempt + 1}/{max_retries}: Content did not change, retrying...")
+                time.sleep(2)  # Wait before retry
+            
+        except NoSuchElementException:
+            return False
+        except Exception as e:
+            print(f"Error clicking next button: {e}")
+            if attempt >= max_retries - 1:
+                return False
+    
+    print(f"Warning: Content did not change after {max_retries} attempts")
+    return False
+
+
+def get_current_page(driver):
+    """
+    Get the current page number from pagination.
+    
+    Args:
+        driver: Selenium WebDriver
+        
+    Returns:
+        Current page number (int)
+    """
+    try:
+        current_button = driver.find_element(By.CSS_SELECTOR, "button.nav-item.current")
+        return int(current_button.get_attribute("data-page"))
+    except:
+        return 1
+
+
+def select_date_from_dropdown(driver, date_range):
+    """
+    Manually select a date from the archive dropdown.
+    The website ignores the dateRange URL parameter, so we need to click the dropdown.
+    
+    Args:
+        driver: Selenium WebDriver
+        date_range: Date string like "January+2025" or "January 2025"
+        
+    Returns:
+        True if successful, False otherwise
+    """
+    try:
+        # Convert format for display (e.g., "January+2025" -> "January 2025")
+        date_display = date_range.replace('+', ' ')
+        
+        # Click the dropdown button to open it
+        dropdown_btn = driver.find_element(By.CSS_SELECTOR, ".custom-selector__btn")
+        driver.execute_script("arguments[0].click();", dropdown_btn)
+        time.sleep(0.5)
+        
+        # Find and click the date option in the dropdown
+        # First try exact match, then try partial match
+        try:
+            # Try clicking by href containing the date
+            date_link = driver.find_element(
+                By.CSS_SELECTOR, 
+                f'a.dropdown-item[href*="{date_range}"]'
+            )
+            driver.execute_script("arguments[0].click();", date_link)
+        except NoSuchElementException:
+            # Try finding by text content
+            dropdown_items = driver.find_elements(By.CSS_SELECTOR, "a.dropdown-item")
+            date_found = False
+            for item in dropdown_items:
+                if date_display in item.text:
+                    driver.execute_script("arguments[0].click();", item)
+                    date_found = True
+                    break
+            
+            if not date_found:
+                print(f"Warning: Could not find date option '{date_display}' in dropdown")
+                return False
+        
+        # Wait for content to load after selection
+        time.sleep(2)
+        
+        # Wait for articles to appear
+        try:
+            WebDriverWait(driver, 10).until(
+                EC.presence_of_element_located((By.CSS_SELECTOR, "div.news-card-h-alt"))
+            )
+        except TimeoutException:
+            print(f"Warning: No articles loaded after selecting {date_display}")
+            return False
+        
+        return True
+        
+    except Exception as e:
+        print(f"Error selecting date from dropdown: {e}")
+        return False
+
+
+def scrape_headlines_by_date(date_range, driver, start_page=1, end_page=None, output_file=None, existing_urls=None):
+    """
+    Scrape headlines for a specific date range (Month+Year).
+    Uses the 'next' button to navigate between pages.
+    Skips articles that have already been scraped (by URL).
+    
+    Args:
+        date_range: Date range string like "January+2025"
+        driver: Selenium WebDriver instance
+        start_page: Starting page number (default: 1)
+        end_page: Ending page number (None = all pages)
+        output_file: Output CSV file path
+        existing_urls: Set of URLs already scraped (to skip duplicates)
+        
+    Returns:
+        Tuple of (list of new article dictionaries, count of skipped duplicates)
+    """
+    if existing_urls is None:
+        existing_urls = set()
+    # First load the main articles page
+    url = "https://turnbackhoax.id/articles?category=all"
+    
+    print(f"\n{'='*60}")
+    print(f"Scraping: {date_range.replace('+', ' ')}")
+    print(f"{'='*60}")
+    
+    driver.get(url)
+    time.sleep(2)  # Wait for initial load
+    
+    # Wait for page to be ready
+    try:
+        WebDriverWait(driver, 10).until(
+            EC.presence_of_element_located((By.CSS_SELECTOR, ".custom-selector__btn"))
+        )
+    except TimeoutException:
+        print(f"Warning: Page did not load properly")
+        return [], 0
+    
+    # Manually select the date from the dropdown (URL parameter is ignored by the website)
+    print(f"Selecting date from dropdown: {date_range.replace('+', ' ')}")
+    if not select_date_from_dropdown(driver, date_range):
+        print(f"Warning: Could not select date {date_range.replace('+', ' ')}")
+        return [], 0
+    
+    # Wait for articles to be present after date selection
+    try:
+        WebDriverWait(driver, 10).until(
+            EC.presence_of_element_located((By.CSS_SELECTOR, "div.news-card-h-alt"))
+        )
+    except TimeoutException:
+        print(f"Warning: No articles found for {date_range.replace('+', ' ')}")
+        return [], 0
+    
+    # Get total pages for this date range
+    total_pages = get_total_pages(driver)
+    if end_page is None or end_page > total_pages:
+        end_page = total_pages
+    
+    print(f"Total pages for {date_range.replace('+', ' ')}: {total_pages}")
+    print(f"Scraping pages {start_page} to {end_page}")
+    
+    all_articles = []
+    current_page = 1
+    
+    # If start_page is greater than 1, we need to click next until we reach it
+    if start_page > 1:
+        print(f"Navigating to start page {start_page}...")
+        for _ in range(start_page - 1):
+            if not click_next_button(driver):
+                print(f"Warning: Could not navigate to page {start_page}")
+                return all_articles, 0  # Return what we have so far
+            current_page += 1
+    
+    # Create progress bar for pages to scrape
+    pages_to_scrape = end_page - start_page + 1
+    pbar = tqdm(total=pages_to_scrape, desc=f"Pages ({date_range.replace('+', ' ')})")
+    
+    total_skipped = 0
+    
+    while current_page <= end_page:
+        pbar.set_description(f"Page {current_page}/{end_page}")
+        
+        # Parse articles from current page
+        articles = parse_articles_from_page(driver)
+        
+        if not articles:
+            print(f"Warning: No articles found on page {current_page}")
+        
+        # Filter out articles that already exist (by URL)
+        new_articles = []
+        for article in articles:
+            if article['url'] not in existing_urls:
+                article['page_number'] = current_page
+                article['date_range'] = date_range.replace('+', ' ')
+                new_articles.append(article)
+            else:
+                total_skipped += 1
+        
+        # Write only new articles to CSV immediately
+        if new_articles and output_file:
+            df = pd.DataFrame(new_articles)
+            df.to_csv(output_file, mode='a', header=False, index=False, encoding='utf-8')
+        
+        all_articles.extend(new_articles)
+        pbar.set_postfix({'new': len(all_articles), 'skipped': total_skipped})
+        pbar.update(1)
+        
+        # If we've reached the end page, stop
+        if current_page >= end_page:
+            break
+        
+        # Try to click next button
+        if not click_next_button(driver):
+            print(f"\nReached end of pagination at page {current_page}")
+            break
+        
+        current_page += 1
+        
+        # Additional delay to ensure content is fully loaded
+        time.sleep(1)
+    
+    pbar.close()
+    return all_articles, total_skipped
+
+
+def scrape_all_headlines(date_ranges=None, start_page=1, end_page=None, output_file=None, headless=True):
+    """
+    Scrape headlines from multiple date ranges using Selenium.
+    
+    Args:
+        date_ranges: List of date range strings (e.g., ["January+2025", "December+2024"])
+                    If None, scrapes current month only
+        start_page: Starting page for each date range
+        end_page: Ending page for each date range (None = all pages)
+        output_file: Output CSV file path
+        headless: Whether to run browser in headless mode
+        
+    Returns:
+        DataFrame with all scraped data
+    """
+    # Default to current month if no date ranges specified
+    if date_ranges is None:
+        current_month = MONTHS[datetime.now().month - 1]
+        current_year = datetime.now().year
+        date_ranges = [f"{current_month}+{current_year}"]
+    
     # Determine output filename
     if output_file is None:
         timestamp = time.strftime("%Y%m%d_%H%M%S")
         output_file = f'turnbackhoax_headlines_{timestamp}.csv'
     
-    # Check for existing data and determine which pages to skip
-    existing_pages = set()
+    # Check for existing data - use URL for deduplication (most robust)
+    existing_urls = set()
     file_exists = False
     if pd.io.common.file_exists(output_file):
         try:
             existing_df = pd.read_csv(output_file, encoding='utf-8')
-            if 'page_number' in existing_df.columns:
-                existing_pages = set(existing_df['page_number'].unique())
+            if 'url' in existing_df.columns:
+                existing_urls = set(existing_df['url'].dropna().unique())
                 print(f"Found existing file: {output_file}")
-                print(f"Already scraped pages: {sorted(existing_pages)}")
+                print(f"Already scraped: {len(existing_urls)} unique articles")
                 file_exists = True
         except Exception as e:
             print(f"Warning: Could not read existing file: {e}")
     
     # Create CSV with headers if it doesn't exist
     if not file_exists:
-        # Create empty DataFrame with correct columns
-        empty_df = pd.DataFrame(columns=['title', 'url', 'preview', 'image_url', 'date', 'category', 'page_number'])
+        empty_df = pd.DataFrame(columns=['title', 'url', 'preview', 'image_url', 'date', 'category', 'page_number', 'date_range'])
         empty_df.to_csv(output_file, index=False, encoding='utf-8')
         print(f"Created new output file: {output_file}")
     
-    # Track statistics
-    total_articles = 0
-    pages_scraped = 0
-    pages_skipped = 0
-
-    # Create progress bar
-    pbar = tqdm(range(start_page, end_page + 1), desc="Scraping pages")
-
-    for page_num in pbar:
-        # Skip if page already exists
-        if page_num in existing_pages:
-            pbar.set_description(f"Skipping page {page_num} (already scraped)")
-            pages_skipped += 1
-            continue
-        
-        # Update progress bar description
-        pbar.set_description(f"Scraping page {page_num}")
-
-        # Scrape the current page
-        df = scrape_turnbackhoax_page(page_num)
-
-        if df is not None and not df.empty:
-            # Add page number column
-            df['page_number'] = page_num
-            
-            # Append to CSV immediately
-            df.to_csv(output_file, mode='a', header=False, index=False, encoding='utf-8')
-            
-            total_articles += len(df)
-            pages_scraped += 1
-            pbar.set_postfix({'articles': total_articles, 'pages': pages_scraped})
-
-        # Add a delay between requests to be polite to the server
-        time.sleep(1)
-
-    print(f"\n{'='*70}")
-    print(f"Scraping completed!")
-    print(f"Pages scraped: {pages_scraped}")
-    print(f"Pages skipped: {pages_skipped}")
-    print(f"Total articles scraped: {total_articles}")
-    print(f"Data saved to: {output_file}")
-    print(f"{'='*70}")
-
-    # Return the complete DataFrame
+    # Setup Selenium driver
+    print("\nStarting browser...")
+    driver = setup_selenium_driver(headless=headless)
+    
     try:
-        final_df = pd.read_csv(output_file, encoding='utf-8')
-        return final_df
-    except Exception as e:
-        print(f"Warning: Could not read final CSV: {e}")
-        return None
+        total_articles = 0
+        total_skipped = 0
+        date_ranges_scraped = 0
+        
+        for date_range in date_ranges:
+            date_range_display = date_range.replace('+', ' ')
+            
+            # Check if browser session is still valid, recreate if needed
+            try:
+                driver.current_url  # This will throw if session is invalid
+            except Exception:
+                print("Browser session lost, restarting...")
+                try:
+                    driver.quit()
+                except:
+                    pass
+                driver = setup_selenium_driver(headless=headless)
+            
+            # Scrape this date range (will skip already scraped URLs)
+            articles, skipped = scrape_headlines_by_date(
+                date_range=date_range,
+                driver=driver,
+                start_page=start_page,
+                end_page=end_page,
+                output_file=output_file,
+                existing_urls=existing_urls
+            )
+            
+            total_skipped += skipped
+            
+            if articles:
+                # Articles are already written to CSV per page in scrape_headlines_by_date
+                # Add newly scraped URLs to existing set for next iterations
+                for article in articles:
+                    existing_urls.add(article['url'])
+                total_articles += len(articles)
+                date_ranges_scraped += 1
+                print(f"Saved {len(articles)} new articles from {date_range_display} (skipped {skipped} duplicates)")
+        
+        print(f"\n{'='*70}")
+        print(f"Scraping completed!")
+        print(f"Date ranges processed: {date_ranges_scraped}")
+        print(f"Total articles scraped: {total_articles}")
+        print(f"Data saved to: {output_file}")
+        print(f"{'='*70}")
+        
+        # Return the complete DataFrame
+        try:
+            final_df = pd.read_csv(output_file, encoding='utf-8')
+            return final_df
+        except Exception as e:
+            print(f"Warning: Could not read final CSV: {e}")
+            return None
+            
+    finally:
+        driver.quit()
+        print("Browser closed.")
+
+
+# Legacy function for backwards compatibility (deprecated)
+def scrape_turnbackhoax_page(page_number):
+    """
+    DEPRECATED: This function uses requests which doesn't work with the current website.
+    Use scrape_all_headlines() with Selenium instead.
+    """
+    print("WARNING: scrape_turnbackhoax_page is deprecated. Use scrape_all_headlines() instead.")
+    return None
+
+
+# Legacy function for backwards compatibility (deprecated)
+def scrape_all_pages(start_page=None, end_page=None, output_file=None):
+    """
+    DEPRECATED: This function uses requests which doesn't work with the current website.
+    Use scrape_all_headlines() with Selenium instead.
+    """
+    print("WARNING: scrape_all_pages is deprecated. Use scrape_all_headlines() instead.")
+    print("Converting to new Selenium-based scraping...")
+    
+    return scrape_all_headlines(
+        date_ranges=None,  # Will use current month
+        start_page=start_page or 1,
+        end_page=end_page,
+        output_file=output_file,
+        headless=True
+    )
 
 
 # ============================================================================
@@ -720,14 +1187,23 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  # Scrape headlines from pages 1-10
-  python3 scraping_turn_back_hoax.py headlines --start 1 --end 10
+  # Scrape headlines for current month
+  python3 scraping_turn_back_hoax.py headlines
+  
+  # Scrape headlines for a specific month
+  python3 scraping_turn_back_hoax.py headlines --date-range "January+2025"
+  
+  # Scrape headlines for multiple months (comma-separated)
+  python3 scraping_turn_back_hoax.py headlines --date-range "January+2025,December+2024"
+  
+  # Scrape headlines with page limit (first 5 pages only)
+  python3 scraping_turn_back_hoax.py headlines --date-range "January+2025" --end 5
+  
+  # Scrape headlines with visible browser (not headless)
+  python3 scraping_turn_back_hoax.py headlines --date-range "January+2025" --show-browser
   
   # Scrape headlines with specific output file (resumes if exists)
-  python3 scraping_turn_back_hoax.py headlines --start 1 --end 100 --output headlines.csv
-  
-  # Resume scraping (skips already scraped pages)
-  python3 scraping_turn_back_hoax.py headlines --start 1 --end 100 --output headlines.csv
+  python3 scraping_turn_back_hoax.py headlines --output headlines.csv
   
   # Scrape full articles from a CSV file
   python3 scraping_turn_back_hoax.py articles --csv headlines.csv
@@ -750,15 +1226,24 @@ Examples:
     )
     
     parser.add_argument(
+        '--date-range',
+        type=str,
+        help='Date range(s) for headlines mode. Format: "Month+Year" (e.g., "January+2025"). '
+             'Multiple ranges can be comma-separated (e.g., "January+2025,December+2024"). '
+             'Default: current month.'
+    )
+    
+    parser.add_argument(
         '--start',
         type=int,
-        help=f'Starting page number (default: {START_PAGE})'
+        default=1,
+        help='Starting page number for each date range (default: 1)'
     )
     
     parser.add_argument(
         '--end',
         type=int,
-        help=f'Ending page number (default: {END_PAGE})'
+        help='Ending page number for each date range (default: all pages)'
     )
     
     parser.add_argument(
@@ -771,6 +1256,12 @@ Examples:
         '--output',
         type=str,
         help='Output CSV file path (resumes if exists)'
+    )
+    
+    parser.add_argument(
+        '--show-browser',
+        action='store_true',
+        help='Show browser window (not headless) for headlines mode'
     )
     
     parser.add_argument(
@@ -788,19 +1279,35 @@ Examples:
     args = parser.parse_args()
 
     print("=" * 70)
-    print("Turn Back Hoax Scraper")
+    print("Turn Back Hoax Scraper (Selenium Edition)")
     print("=" * 70)
     print()
 
     if args.mode == 'headlines':
         print("Mode: Scraping Headlines")
         print("-" * 70)
+        
+        # Parse date ranges
+        date_ranges = None
+        if args.date_range:
+            date_ranges = [dr.strip() for dr in args.date_range.split(',')]
+            print(f"Date ranges: {[dr.replace('+', ' ') for dr in date_ranges]}")
+        else:
+            # Use get_date_ranges() which respects the MONTHS list in the script
+            date_ranges = get_date_ranges()
+            print(f"Date ranges (from config): {[dr.replace('+', ' ') for dr in date_ranges]}")
+        
         if args.output:
             print(f"Output file: {args.output}")
-        df = scrape_all_pages(
-            start_page=args.start, 
+        if args.show_browser:
+            print("Browser mode: Visible")
+        
+        df = scrape_all_headlines(
+            date_ranges=date_ranges,
+            start_page=args.start,
             end_page=args.end,
-            output_file=args.output
+            output_file=args.output,
+            headless=not args.show_browser
         )
         if df is not None:
             print("\nSample of scraped data:")
