@@ -5,6 +5,7 @@
   "description": "Save headlines from TurnBackHoax article pages to CSV",
   "permissions": [
     "activeTab",
+    "scripting",
     "storage",
     "downloads"
   ],
