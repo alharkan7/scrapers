@@ -33,6 +33,7 @@ wheels/
 *.csv
 !requirements.json
 !test_notebook_usage.py
+!turnbackhoax-extension/manifest.json
 
 # IDE
 .vscode/

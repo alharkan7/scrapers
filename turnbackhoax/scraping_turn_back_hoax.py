@@ -49,8 +49,8 @@ HEADERS = {
 
 # Month names for date range parameter
 MONTHS = [
-    "January", 
-    "February", 
+#    "January", 
+#    "February", 
     "March",
     "April", 
     "May", 
@@ -58,8 +58,8 @@ MONTHS = [
     "July", 
     "August", 
     "September", 
-    "October",
-    "November", 
+#    "October",
+#    "November", 
     "December"
 ]
 
