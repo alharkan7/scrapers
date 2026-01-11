@@ -4,7 +4,12 @@ This script cleans the data by:
 1. Extracting title tags into a separate column
 2. Creating a clean title without the tag
 3. Standardizing quotation marks
-4. Cleaning narasi and penjelasan columns (removing ads, normalizing fonts)
+4. Cleaning narasi, penjelasan, and kesimpulan columns by:
+   - Removing HTML, JavaScript, and CSS code blocks
+   - Removing ad patterns (adsbygoogle, googletag, etc.)
+   - Removing quotation marks
+   - Normalizing stylized Unicode fonts
+   - Removing leading non-informational characters
 """
 
 import pandas as pd
@@ -94,6 +99,75 @@ def remove_ads_pattern(text):
     text = re.sub(r'adsbygoogle\s*=\s*window\.adsbygoogle\s*\|\|\s*\[\]', '', text)
     
     # Clean up any extra whitespace left behind
+    text = re.sub(r'\s+', ' ', text).strip()
+    
+    return text
+
+
+def remove_html_js_css_pattern(text):
+    """Remove HTML, JavaScript, and CSS code blocks from text"""
+    if pd.isna(text):
+        return text
+    
+    text = str(text)
+    
+    # Remove CSS style blocks (e.g., #inline4 {margin:1.5em 0})
+    # Pattern: #identifier {css properties}
+    text = re.sub(r'#[\w\-]+\s*\{[^}]*\}', '', text)
+    
+    # Remove CSS selectors with element names (e.g., #inline4 img, #inline3 img)
+    text = re.sub(r'#[\w\-]+\s+\w+', '', text)
+    
+    # Remove standalone CSS properties (with or without braces)
+    # Pattern: property:value; or property:value !important;
+    text = re.sub(r'\b[\w\-]+\s*:\s*[^;]+\s*!important\s*;', '', text)
+    text = re.sub(r'\b(?:margin|padding|display|max-width|min-width|width|height|text-align|color|background|font|border)[\w\-]*\s*:\s*[^;]+;', '', text, flags=re.IGNORECASE)
+    
+    # Remove JavaScript variable declarations and googletag code
+    # Pattern: let/var/const variable = ... up to semicolon or closing brace
+    text = re.sub(r'let\s+\w+\s*=\s*window\.googletag[^;]*;', '', text)
+    text = re.sub(r'let\s+gpt_[\w]+\s*=\s*[^;]+;', '', text)
+    
+    # Remove gpt_.cmd.push patterns (with or without parentheses/function)
+    text = re.sub(r'gpt_?[\w]*\.cmd\.push\s*\(\s*function[^)]*\)?', '', text)
+    text = re.sub(r'gpt_?[\w]*\.cmd\.push[^;]*;?', '', text)
+    
+    # Remove other googletag methods
+    text = re.sub(r'gpt[\w]*\.defineSlot\([^)]*\)', '', text)
+    text = re.sub(r'gpt[\w]*\.pubads\(\)[^;]*;', '', text)
+    text = re.sub(r'gpt[\w]*\.enableServices\(\);?', '', text)
+    text = re.sub(r'gpt[\w]*\.display\([^)]*\);?', '', text)
+    
+    # Remove generic JavaScript patterns
+    text = re.sub(r'window\.\w+\s*\|\|\s*\{[^}]*\}', '', text)
+    text = re.sub(r'\.addService\([^)]*\)', '', text)
+    text = re.sub(r'\.collapseEmptyDivs\(\)', '', text)
+    text = re.sub(r'\.enableSingleRequest\(\)', '', text)
+    
+    # Remove HTML div IDs and classes (e.g., #gpt-inline4-passback{text-align:center;})
+    text = re.sub(r'#[\w\-]+\{[^}]*\}', '', text)
+    
+    # Remove common HTML tags (but preserve the content inside)
+    text = re.sub(r'<[^>]+>', '', text)
+    
+    # Remove googletag path patterns (e.g., /22201407306/tirto-desktop/inline-4)
+    text = re.sub(r'/\d+/[\w\-/]+', '', text)
+    
+    # Remove array/object literals in square brackets when they're likely code
+    text = re.sub(r'\[\[\d+,\s*\d+\],\s*\[\d+,\s*\d+\]\]', '', text)
+    
+    # Remove orphaned JavaScript punctuation and keywords
+    text = re.sub(r'\s*\|\|\s*\[\]', '', text)
+    text = re.sub(r'\{\s*cmd:\s*\[\]\s*\}', '', text)
+    text = re.sub(r'\bfunction\s*;?\s*', '', text)
+    
+    # Remove standalone semicolons and colons that are code remnants
+    text = re.sub(r'\s*;\s*;+\s*', ' ', text)  # Multiple semicolons
+    text = re.sub(r':\s*;', '', text)  # Colon followed by semicolon
+    
+    # Clean up any extra whitespace, curly braces, or parentheses left behind
+    text = re.sub(r'\s*[\{\}]\s*', ' ', text)
+    text = re.sub(r'\(\s*\)', '', text)
     text = re.sub(r'\s+', ' ', text).strip()
     
     return text
@@ -203,25 +277,31 @@ def normalize_stylized_text(text):
 
 
 def clean_text_column(text):
-    """Apply all text cleaning steps: remove ads, remove quotes, normalize fonts"""
+    """Apply all text cleaning steps: remove ads, HTML/JS/CSS, remove quotes, normalize fonts"""
     if pd.isna(text):
         return text
     
     text = str(text)
     
-    # Step 1: Remove ad patterns
+    # Step 1: Remove HTML, JavaScript, and CSS patterns (must be first to remove code blocks)
+    text = remove_html_js_css_pattern(text)
+    
+    # Step 2: Remove ad patterns
     text = remove_ads_pattern(text)
     
-    # Step 2: Remove quotation marks
+    # Step 3: Remove quotation marks
     text = remove_quotes(text)
     
-    # Step 3: Normalize stylized Unicode characters
+    # Step 4: Normalize stylized Unicode characters
     text = normalize_stylized_text(text)
     
-    # Step 4: Remove leading non-informational characters (*, -, bullet points, etc.)
-    text = re.sub(r'^[\s\*\-•·‣⁃►▸▹◦◘○●]+', '', text)
+    # Step 5: Remove leading non-informational characters (*, -, bullet points, semicolons, etc.)
+    text = re.sub(r'^[\s\*\-•·‣⁃►▸▹◦◘○●;:,]+', '', text)
     
-    # Step 5: Clean up whitespace (multiple spaces to single, trim)
+    # Step 6: Remove trailing semicolons and other code remnants
+    text = re.sub(r'[\s;:,]+$', '', text)
+    
+    # Step 7: Clean up whitespace (multiple spaces to single, trim)
     text = re.sub(r'\s+', ' ', text).strip()
     
     return text
@@ -332,13 +412,13 @@ df['title_tag'] = df['title_tag_raw'].apply(normalize_title_tag)
 # Drop the raw tag column (we only keep the normalized one)
 df = df.drop(columns=['title_tag_raw'])
 
-print("[5/7] Cleaning 'narasi' column (removing ads, quotes, normalizing fonts, leading chars)...")
+print("[5/7] Cleaning 'narasi' column (removing HTML/JS/CSS, ads, quotes, normalizing fonts)...")
 df['narasi'] = df['narasi'].apply(clean_text_column)
 
-print("[6/7] Cleaning 'penjelasan' column (removing ads, quotes, normalizing fonts, leading chars)...")
+print("[6/7] Cleaning 'penjelasan' column (removing HTML/JS/CSS, ads, quotes, normalizing fonts)...")
 df['penjelasan'] = df['penjelasan'].apply(clean_text_column)
 
-print("[7/7] Cleaning 'kesimpulan' column (removing ads, quotes, normalizing fonts, leading chars)...")
+print("[7/7] Cleaning 'kesimpulan' column (removing HTML/JS/CSS, ads, quotes, normalizing fonts)...")
 df['kesimpulan'] = df['kesimpulan'].apply(clean_text_column)
 
 
