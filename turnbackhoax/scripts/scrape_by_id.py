@@ -30,7 +30,7 @@ START_ARTICLE_ID = 24851  # Starting article ID
 END_ARTICLE_ID = 31371    # Ending article ID (inclusive)
 
 # Output file (will resume if exists)
-OUTPUT_FILE = "turnbackhoax_articles_by_id.csv"
+OUTPUT_FILE = "../data/turnbackhoax_articles_by_id.csv"
 
 # Delay between requests (seconds) - be polite to the server
 REQUEST_DELAY = 1.0

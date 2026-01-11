@@ -260,8 +260,8 @@ def main():
     
     # Define input and output paths
     script_dir = Path(__file__).parent
-    input_csv = args.input or str(script_dir / "turnbackhoax_articles_by_id.csv")
-    output_csv = args.output or str(script_dir / "skipped_article_ids.csv")
+    input_csv = args.input or str(script_dir / "../data/turnbackhoax_articles_by_id.csv")
+    output_csv = args.output or str(script_dir / "../data/skipped_article_ids.csv")
     
     # Find and save skipped IDs
     check_urls = not args.no_check

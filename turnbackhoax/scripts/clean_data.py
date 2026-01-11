@@ -16,8 +16,8 @@ import pandas as pd
 import re
 
 # Load the CSV file
-INPUT_FILE = 'turnbackhoax_articles_by_id.csv'
-OUTPUT_FILE = 'turnbackhoax_articles_cleaned.csv'
+INPUT_FILE = '../data/turnbackhoax_articles_by_id.csv'
+OUTPUT_FILE = '../data/turnbackhoax_articles_cleaned.csv'
 
 df = pd.read_csv(INPUT_FILE)
 

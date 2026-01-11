@@ -2,6 +2,30 @@
 
 A comprehensive Python scraper for [turnbackhoax.id](https://turnbackhoax.id) that can scrape headlines, full article content, and process scraped data.
 
+## Directory Structure
+
+```
+turnbackhoax/
+├── scripts/          # Python scripts for scraping and analysis
+│   ├── scrape_by_id.py              # Main scraper by article ID
+│   ├── scraping_turn_back_hoax.py   # Alternative scraper (Google Sheets)
+│   ├── scraping_turnbackhoax_v1.py  # Version 1 scraper
+│   ├── clean_data.py                # Data cleaning utilities
+│   ├── combine_csv.py               # CSV combination tool
+│   ├── find_skipped_ids.py          # Find missing article IDs
+│   └── analyze_date_outliers.py     # Analyze date anomalies
+├── data/             # CSV files and scraped data
+│   ├── turnbackhoax_articles_by_id.csv  # Main dataset
+│   ├── date_outliers.csv                # Date outlier analysis
+│   └── skipped_article_ids.csv          # Missing IDs list
+├── reports/          # Documentation and analysis reports
+│   ├── DATE_OUTLIERS_REPORT.md      # Date outlier investigation
+│   ├── OUTLIERS_QUICK_REF.md        # Quick reference guide
+│   └── MISSING_PAGES_REPORT.md      # Missing pages analysis
+├── requirements.txt  # Python dependencies
+└── README.md        # This file
+```
+
 ## Features
 
 1. **Scrape Headlines**: Extract article headlines, URLs, previews, images, dates, and authors from multiple pages
@@ -38,13 +62,29 @@ SHEET_NAME = ""  # Your Google Sheet gid
 
 ## Usage
 
-The scraper has three modes of operation:
+All scripts are located in the `scripts/` directory. Run them from the project root:
 
-### 1. Scrape Headlines
+### 1. Scrape Articles by ID (Recommended)
+
+The main scraper that iterates through article IDs:
+
+```bash
+cd scripts
+python3 scrape_by_id.py
+```
+
+Edit `scrape_by_id.py` to configure:
+- `START_ARTICLE_ID` and `END_ARTICLE_ID`
+- Request delay and retry settings
+
+**Output**: `data/turnbackhoax_articles_by_id.csv`
+
+### 2. Scrape Headlines (Legacy)
 
 Scrape article headlines from multiple pages:
 
 ```bash
+cd scripts
 python3 scraping_turn_back_hoax.py headlines
 ```
 
@@ -54,13 +94,14 @@ With custom page range:
 python3 scraping_turn_back_hoax.py headlines --start 1 --end 10
 ```
 
-**Output**: `turnbackhoax_headlines_TIMESTAMP.csv`
+**Output**: `data/turnbackhoax_headlines_TIMESTAMP.csv`
 
-### 2. Scrape Full Articles
+### 3. Scrape Full Articles (Legacy)
 
 Scrape full article content from URLs in a Google Sheet:
 
 ```bash
+cd scripts
 python3 scraping_turn_back_hoax.py articles
 ```
 
