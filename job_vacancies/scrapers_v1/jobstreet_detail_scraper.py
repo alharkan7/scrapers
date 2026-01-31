@@ -30,6 +30,7 @@ from tqdm import tqdm
 # Input/Output files
 INPUT_FILE = "job_vacancies/data/jobstreet_vacancies.csv"
 OUTPUT_FILE = "job_vacancies/data/jobstreet_details.csv"
+FAILED_FILE = "job_vacancies/data/jobstreet_details_failed.csv"  # Track failed/expired jobs
 
 # Delay between requests (in seconds) - random delay between min and max
 MIN_DELAY = 2.0
@@ -42,7 +43,7 @@ BROWSER_VIEWPORT_WIDTH = 1920
 BROWSER_VIEWPORT_HEIGHT = 1080
 BROWSER_LOCALE = "id-ID"
 BROWSER_TIMEZONE = "Asia/Jakarta"
-BROWSER_USER_AGENT = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+BROWSER_USER_AGENT = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36"
 
 # Scraping limits
 MAX_JOBS = None  # Maximum number of jobs to process (None = all jobs)
@@ -139,11 +140,15 @@ class JobDetailScraper:
         page_wait_time: Optional[float] = None,
         scroll_wait_time: Optional[float] = None,
         initial_delay_multiplier: Optional[float] = None,
+        failed_log: Optional[str] = None,
     ):
         """Initialize the detail scraper."""
         # Use provided parameters or defaults from configuration
         self.input_file = Path(input_file if input_file is not None else INPUT_FILE)
         self.output_file = Path(output_file if output_file is not None else OUTPUT_FILE)
+        self.failed_file = Path(failed_log if failed_log is not None else FAILED_FILE)
+        if not self.failed_file.is_absolute():
+            self.failed_file = Path("job_vacancies/data") / Path(self.failed_file).name
         self.delay_range = delay_range if delay_range is not None else (MIN_DELAY, MAX_DELAY)
         self.headless = headless if headless is not None else HEADLESS_MODE
         self.max_jobs = max_jobs if max_jobs is not None else MAX_JOBS
@@ -163,6 +168,7 @@ class JobDetailScraper:
 
         # Track processed job IDs
         self.scraped_job_ids: set = set()
+        self.failed_job_ids: set = set()  # Track jobs that failed or expired
         self.jobs_processed: List[JobDetail] = []
 
         # Session statistics
@@ -170,6 +176,8 @@ class JobDetailScraper:
             'pages_loaded': 0,
             'successful_extractions': 0,
             'failed_extractions': 0,
+            'expired_jobs': 0,
+            'validation_failures': 0,
             'retry_attempts': 0,
             'csv_writes': 0,
             'total_time': 0,
@@ -177,10 +185,13 @@ class JobDetailScraper:
 
         # Load existing job IDs from CSV if it exists
         self._load_existing_job_ids()
+        self._load_failed_job_ids()  # Load previously failed jobs
 
         logger.info(f"Detail scraper initialized. Input: {self.input_file}")
         logger.info(f"Output: {self.output_file}")
+        logger.info(f"Failed job log: {self.failed_file}")
         logger.info(f"Existing jobs in CSV: {len(self.scraped_job_ids)}")
+        logger.info(f"Previously failed jobs: {len(self.failed_job_ids)}")
     
     def _random_delay(self, multiplier: float = 1.0) -> None:
         """Add random delay."""
@@ -224,7 +235,7 @@ class JobDetailScraper:
         """Load existing job IDs from output CSV file."""
         if not self.output_file.exists():
             return
-        
+
         try:
             with open(self.output_file, 'r', newline='', encoding='utf-8') as f:
                 reader = csv.DictReader(f)
@@ -235,6 +246,24 @@ class JobDetailScraper:
             logger.info(f"Loaded {len(self.scraped_job_ids)} existing job IDs from {self.output_file}")
         except Exception as e:
             logger.warning(f"Could not load existing job IDs: {e}")
+
+    def _load_failed_job_ids(self) -> None:
+        """Load previously failed job IDs from failed jobs file."""
+        if not self.failed_file.exists():
+            logger.debug(f"No failed jobs file found: {self.failed_file}")
+            return
+
+        try:
+            with open(self.failed_file, 'r', newline='', encoding='utf-8') as f:
+                reader = csv.DictReader(f)
+                for row in reader:
+                    job_id = row.get('job_id', '').strip()
+                    if job_id:
+                        self.failed_job_ids.add(job_id)
+                        logger.debug(f"Loaded failed job: {job_id}")
+            logger.info(f"Loaded {len(self.failed_job_ids)} previously failed job IDs")
+        except Exception as e:
+            logger.warning(f"Could not load failed job IDs: {e}")
     
     def _create_csv_if_not_exists(self) -> None:
         """Create CSV file with headers if it doesn't exist."""
@@ -344,22 +373,47 @@ class JobDetailScraper:
             else:
                 logger.warning(f"⚠ Validation failed for {job_id}")
                 self.session_stats['failed_extractions'] += 1
+                self.session_stats['validation_failures'] += 1
+                
+                # DEBUG: Log page title and save HTML for first few failures to diagnose blocking
+                page_title = soup.find('title')
+                page_title_text = page_title.get_text(strip=True) if page_title else "NO TITLE FOUND"
+                logger.warning(f"  📄 Page title: {page_title_text}")
+                
+                # Save first failed page HTML for debugging (only first 3 failures)
+                if self.session_stats['validation_failures'] <= 3:
+                    debug_file = Path(f"job_vacancies/data/debug_failed_{job_id}.html")
+                    debug_file.parent.mkdir(parents=True, exist_ok=True)
+                    with open(debug_file, 'w', encoding='utf-8') as f:
+                        f.write(content)
+                    logger.warning(f"  💾 Saved debug HTML to: {debug_file}")
+                
+                # Log validation failures to failed jobs file so they are skipped in future runs
+                self._save_failed_job(job_id, job_url, f"Validation failed: missing/invalid required fields")
                 return None
 
         except Exception as e:
             self.session_stats['failed_extractions'] += 1
             error_msg = str(e)
-            logger.error(f"Error extracting details from {job_url}: {error_msg[:100]}")
+            error_type = self._classify_error(error_msg, job_id)
 
-            # Retry on network/transient errors
-            if retry_count < MAX_RETRIES - 1 and any(
-                kw in error_msg.lower() for kw in ['timeout', 'network', 'connection', 'reset', 'blocked']
-            ):
+            logger.error(f"Error extracting details from {job_id}: {error_type} - {error_msg[:100]}")
+
+            # Retry on network/transient errors (not expired/validation errors)
+            if retry_count < MAX_RETRIES - 1 and error_type in ["timeout", "network", "unknown"]:
                 self.session_stats['retry_attempts'] += 1
                 delay = random.uniform(*self.delay_range) * RETRY_DELAY_MULTIPLIER ** retry_count
                 logger.info(f"Retrying {job_id} (attempt {retry_count + 2}/{MAX_RETRIES})...")
                 time.sleep(delay)
                 return self._extract_job_details(job_id, job_url, retry_count + 1)
+
+            # Log ALL terminal failures to failed jobs file (after retries exhausted or non-retryable errors)
+            if error_type == "expired":
+                logger.info(f"  Job {job_id} expired/removed - logging to failed file")
+                self._save_failed_job(job_id, job_url, f"Expired/Removed: {error_msg[:100]}")
+            else:
+                logger.warning(f"  Job {job_id} permanently failed ({error_type}) - logging to failed file")
+                self._save_failed_job(job_id, job_url, f"{error_type}: {error_msg[:100]}")
 
             return None
     
@@ -672,12 +726,27 @@ class JobDetailScraper:
         if not job.job_url:
             logger.warning("  ✗ Missing job_url")
             return False
+            
+        # Try to fill missing title from page title metadata if available (last resort)
+        if not job.job_title and self.page:
+            try:
+                page_title = self.page.title()
+                # Format: "Job Title - Location - Jobstreet"
+                if " - Jobstreet" in page_title:
+                    clean_title = page_title.split(" Job in ")[0].split(" - ")[0]
+                    if clean_title:
+                        job.job_title = clean_title.strip()
+                        logger.info(f"  ℹ Recovered title from metadata: {job.job_title}")
+            except:
+                pass
 
-        if not job.job_title or len(job.job_title) < 3:
-            logger.warning("  ✗ Missing or invalid job_title")
+        # Relaxed length check (allows "IT", "HR", "AI", etc.)
+        if not job.job_title or len(job.job_title) < 2:
+            logger.warning(f"  ✗ Missing or invalid job_title: '{job.job_title}'")
             return False
 
         if not job.company_name:
+            # Try to recover company name from title "Job at Company" pattern or similar if needed
             logger.warning("  ✗ Missing company_name")
 
         # Check description length
@@ -686,6 +755,62 @@ class JobDetailScraper:
             return False
 
         return True
+
+    def _classify_error(self, error_msg: str, job_id: str) -> str:
+        """Classify the type of error for better tracking."""
+        error_lower = error_msg.lower()
+
+        # Expired/removed job
+        if any(kw in error_lower for kw in ['404', 'not found', 'expired', 'removed', 'no longer', 'deleted']):
+            self.session_stats['expired_jobs'] += 1
+            return "expired"
+
+        # Timeout
+        if any(kw in error_lower for kw in ['timeout', 'timed']):
+            return "timeout"
+
+        # Network error
+        if any(kw in error_lower for kw in ['network', 'connection', 'reset']):
+            return "network"
+
+        # Validation failure
+        if any(kw in error_lower for kw in ['missing', 'invalid', 'validation']):
+            self.session_stats['validation_failures'] += 1
+            return "validation"
+
+        # Default
+        return "unknown"
+
+    def _create_failed_csv_if_not_exists(self) -> None:
+        """Create failed jobs CSV file with headers if it doesn't exist."""
+        if self.failed_file.exists():
+            return
+
+        self.failed_file.parent.mkdir(parents=True, exist_ok=True)
+        fieldnames = ['job_id', 'job_url', 'failure_reason', 'failed_at']
+
+        with open(self.failed_file, 'w', newline='', encoding='utf-8') as f:
+            writer = csv.DictWriter(f, fieldnames=fieldnames, quoting=csv.QUOTE_ALL)
+            writer.writeheader()
+
+        logger.debug(f"Created failed jobs file: {self.failed_file}")
+
+    def _save_failed_job(self, job_id: str, job_url: str, reason: str) -> None:
+        """Save a failed job to the failed jobs CSV."""
+        self._create_failed_csv_if_not_exists()
+
+        try:
+            with open(self.failed_file, 'a', newline='', encoding='utf-8') as f:
+                writer = csv.DictWriter(f, fieldnames=['job_id', 'job_url', 'failure_reason', 'failed_at'],
+                                       quoting=csv.QUOTE_ALL)
+                writer.writerow({
+                    'job_id': job_id,
+                    'job_url': job_url,
+                    'failure_reason': reason,
+                    'failed_at': datetime.now().isoformat()
+                })
+        except Exception as e:
+            logger.error(f"Failed to save failed job {job_id}: {e}")
     
     def scrape(self) -> None:
         """Main scraping method."""
@@ -695,11 +820,12 @@ class JobDetailScraper:
             logger.error("No jobs to scrape!")
             return
 
-        # Filter out already scraped jobs
-        jobs_to_scrape = [job for job in all_jobs if job["job_id"] not in self.scraped_job_ids]
+        # Filter out already scraped jobs AND previously failed jobs
+        jobs_to_scrape = [job for job in all_jobs if job["job_id"] not in self.scraped_job_ids and job["job_id"] not in self.failed_job_ids]
 
         logger.info(f"Total jobs in input: {len(all_jobs)}")
         logger.info(f"Already scraped: {len(self.scraped_job_ids)}")
+        logger.info(f"Previously failed: {len(self.failed_job_ids)}")
         logger.info(f"Remaining to scrape: {len(jobs_to_scrape)}")
 
         if not jobs_to_scrape:
@@ -720,12 +846,15 @@ class JobDetailScraper:
         try:
             with sync_playwright() as p:
                 # Launch browser
+                # Launch browser with stealth args
                 self.browser = p.chromium.launch(
                     headless=self.headless,
                     args=[
                         "--disable-blink-features=AutomationControlled",
                         "--no-sandbox",
-                    ]
+                        "--disable-infobars",
+                    ],
+                    ignore_default_args=["--enable-automation"],
                 )
 
                 context = self.browser.new_context(
@@ -733,6 +862,13 @@ class JobDetailScraper:
                     user_agent=self.user_agent,
                     locale=self.browser_locale,
                     timezone_id=self.browser_timezone,
+                    extra_http_headers={
+                        "Accept-Language": f"{self.browser_locale},id;q=0.9,en-US;q=0.8,en;q=0.7",
+                        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
+                        "Sec-Ch-Ua": '"Not A(Brand";v="99", "Google Chrome";v="143", "Chromium";v="143"',
+                        "Sec-Ch-Ua-Mobile": "?0",
+                        "Sec-Ch-Ua-Platform": '"macOS"',
+                    }
                 )
 
                 self.page = context.new_page()
@@ -818,6 +954,57 @@ class JobDetailScraper:
         
         logger.info(f"Saved {len(unsaved_jobs)} additional job details to {self.output_file}")
     
+    def scrape_single_url(self, url: str) -> None:
+        """Scrape a single URL for debugging."""
+        job_id = url.split('/')[-1].split('?')[0]
+        
+        try:
+            with sync_playwright() as p:
+                # Launch browser with stealth args
+                self.browser = p.chromium.launch(
+                    headless=self.headless,
+                    args=[
+                        "--disable-blink-features=AutomationControlled",
+                        "--no-sandbox",
+                        "--disable-infobars",
+                    ],
+                    ignore_default_args=["--enable-automation"],
+                )
+
+                context = self.browser.new_context(
+                    viewport={"width": self.viewport_size[0], "height": self.viewport_size[1]},
+                    user_agent=self.user_agent,
+                    locale=self.browser_locale,
+                    timezone_id=self.browser_timezone,
+                    extra_http_headers={
+                        "Accept-Language": f"{self.browser_locale},id;q=0.9,en-US;q=0.8,en;q=0.7",
+                        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
+                        "Sec-Ch-Ua": '"Not A(Brand";v="99", "Google Chrome";v="143", "Chromium";v="143"',
+                        "Sec-Ch-Ua-Mobile": "?0",
+                        "Sec-Ch-Ua-Platform": '"macOS"',
+                    }
+                )
+
+                self.page = context.new_page()
+                
+                logger.info(f"Extracting single job: {url}")
+                job = self._extract_job_details(job_id, url)
+                
+                if job:
+                    logger.info(f"Successfully scraped: {job.job_title}")
+                    # Print as formatted JSON
+                    print(json.dumps(asdict(job), indent=2, default=str))
+                else:
+                    logger.error("Failed to scrape job.")
+                    
+        except Exception as e:
+            logger.error(f"Error in single scrape: {e}")
+            import traceback
+            traceback.print_exc()
+        finally:
+            # Browser is closed automatically by context manager
+            pass
+    
     def run(self) -> None:
         """Run the complete scraping process."""
         start_time = time.time()
@@ -839,7 +1026,6 @@ class JobDetailScraper:
                 self.save_to_csv()
         finally:
             elapsed = time.time() - start_time
-            logger.info(f"Completed in {elapsed:.1f} seconds")
 
             # Calculate success rate
             total_attempts = self.session_stats['successful_extractions'] + self.session_stats['failed_extractions']
@@ -847,15 +1033,21 @@ class JobDetailScraper:
 
             avg_time = self.session_stats['total_time'] / max(1, self.session_stats['successful_extractions'])
 
+            logger.info(f"Completed in {elapsed:.1f} seconds")
             logger.info(f"Total job details collected: {len(self.jobs_processed)}")
             logger.info(f"Total unique jobs saved: {len(self.scraped_job_ids)}")
             logger.info(f"Success rate: {success_rate:.1f}% ({self.session_stats['successful_extractions']}/{total_attempts})")
+            logger.info(f"Expired/removed jobs: {self.session_stats['expired_jobs']}")
+            logger.info(f"Validation failures: {self.session_stats['validation_failures']}")
             logger.info(f"Pages loaded: {self.session_stats['pages_loaded']}")
             logger.info(f"Failed extractions: {self.session_stats['failed_extractions']}")
             logger.info(f"Retry attempts: {self.session_stats['retry_attempts']}")
             logger.info(f"CSV writes: {self.session_stats['csv_writes']}")
             logger.info(f"Average time per job: {avg_time:.1f}s")
             logger.info(f"Output file: {self.output_file}")
+            logger.info(f"Failed jobs log: {self.failed_file}")
+            if self.session_stats['expired_jobs'] > 0:
+                logger.info(f"  Note: Expired jobs logged to {self.failed_file} and will be skipped in future runs")
 
 
 def main():
@@ -929,7 +1121,19 @@ Examples:
         default=None,
         help=f"Wait time after page load in seconds (default: {PAGE_WAIT_TIME})"
     )
-    
+    parser.add_argument(
+        "--failed-log",
+        type=str,
+        default=None,
+        help=f"Failed jobs CSV file (default: {FAILED_FILE})"
+    )
+    parser.add_argument(
+        "--url",
+        type=str,
+        default=None,
+        help="Scrape a single specific Job URL (for debugging)"
+    )
+
     args = parser.parse_args()
     
     # Build delay range
@@ -947,9 +1151,15 @@ Examples:
         max_jobs=args.max_jobs,
         page_load_timeout=args.timeout,
         page_wait_time=args.page_wait,
+        failed_log=args.failed_log,
     )
     
-    scraper.run()
+    if args.url:
+        # Scrape single URL mode
+        logger.info(f"Debug mode: Scraping single URL: {args.url}")
+        scraper.scrape_single_url(args.url)
+    else:
+        scraper.run()
 
 
 if __name__ == "__main__":

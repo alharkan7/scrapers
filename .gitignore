@@ -36,6 +36,7 @@ wheels/
 !turnbackhoax-extension/manifest.json
 !job_vacancies/data/jobstreet_details.csv
 !job_vacancies/data/jobstreet_vacancies.csv
+!job_vacancies/data/jobstreet_details_failed.csv
 
 # IDE
 .vscode/
@@ -68,3 +69,5 @@ x-scraper/accounts/
 secrets.json
 credentials.json
 client_secret*.json
+
+job_vacancies/data/*.html
