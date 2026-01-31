@@ -34,6 +34,8 @@ wheels/
 !requirements.json
 !test_notebook_usage.py
 !turnbackhoax-extension/manifest.json
+!job_vacancies/data/jobstreet_details.csv
+!job_vacancies/data/jobstreet_vacancies.csv
 
 # IDE
 .vscode/
