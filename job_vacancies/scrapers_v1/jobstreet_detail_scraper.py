@@ -141,12 +141,22 @@ class JobDetailScraper:
         scroll_wait_time: Optional[float] = None,
         initial_delay_multiplier: Optional[float] = None,
         failed_log: Optional[str] = None,
+        shard_index: int = 0,
+        shard_count: int = 1,
     ):
         """Initialize the detail scraper."""
         # Use provided parameters or defaults from configuration
         self.input_file = Path(input_file if input_file is not None else INPUT_FILE)
         self.output_file = Path(output_file if output_file is not None else OUTPUT_FILE)
         self.failed_file = Path(failed_log if failed_log is not None else FAILED_FILE)
+
+        self.shard_index = shard_index
+        self.shard_count = shard_count
+        if self.shard_count < 1:
+            self.shard_count = 1
+        if self.shard_index >= self.shard_count:
+            logger.warning(f"Shard index {self.shard_index} must be less than shard count {self.shard_count}. Defaulting to 0.")
+            self.shard_index = 0
         if not self.failed_file.is_absolute():
             self.failed_file = Path("job_vacancies/data") / Path(self.failed_file).name
         self.delay_range = delay_range if delay_range is not None else (MIN_DELAY, MAX_DELAY)
@@ -826,10 +836,17 @@ class JobDetailScraper:
         logger.info(f"Total jobs in input: {len(all_jobs)}")
         logger.info(f"Already scraped: {len(self.scraped_job_ids)}")
         logger.info(f"Previously failed: {len(self.failed_job_ids)}")
-        logger.info(f"Remaining to scrape: {len(jobs_to_scrape)}")
+        logger.info(f"Total candidate jobs: {len(jobs_to_scrape)}")
+
+        # Apply sharding PARTITION
+        if self.shard_count > 1:
+            original_count = len(jobs_to_scrape)
+            # Simple modulo sharding: take every Nth item starting from index
+            jobs_to_scrape = [job for i, job in enumerate(jobs_to_scrape) if i % self.shard_count == self.shard_index]
+            logger.info(f"Applied Sharding: Node {self.shard_index + 1}/{self.shard_count}. Keep {len(jobs_to_scrape)} of {original_count} jobs.")
 
         if not jobs_to_scrape:
-            logger.info("All jobs have been scraped!")
+            logger.info("All jobs have been scraped (or this shard is empty)!")
             return
 
         if self.max_jobs and self.max_jobs < len(jobs_to_scrape):
@@ -1133,6 +1150,18 @@ Examples:
         default=None,
         help="Scrape a single specific Job URL (for debugging)"
     )
+    parser.add_argument(
+        "--shard-index",
+        type=int,
+        default=0,
+        help="Index of the current shard (0-based, start from 0)"
+    )
+    parser.add_argument(
+        "--shard-count",
+        type=int,
+        default=1,
+        help="Total number of shards/instances running basically"
+    )
 
     args = parser.parse_args()
     
@@ -1152,6 +1181,8 @@ Examples:
         page_load_timeout=args.timeout,
         page_wait_time=args.page_wait,
         failed_log=args.failed_log,
+        shard_index=args.shard_index,
+        shard_count=args.shard_count,
     )
     
     if args.url:
