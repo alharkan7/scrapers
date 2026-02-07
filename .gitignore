@@ -30,6 +30,7 @@ wheels/
 
 # Output files
 *.json
+*.jsonl
 *.csv
 !requirements.json
 !test_notebook_usage.py
