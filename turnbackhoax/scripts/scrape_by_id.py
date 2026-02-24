@@ -26,11 +26,15 @@ from datetime import datetime
 # CONFIGURATION - Edit these values
 # ============================================================================
 
-START_ARTICLE_ID = 24851  # Starting article ID
-END_ARTICLE_ID = 31371    # Ending article ID (inclusive)
+START_ARTICLE_ID = 1      # Starting article ID (1 for full scrape)
+END_ARTICLE_ID = 33000   # Ending article ID (set high, script will stop automatically)
+
+# Stop scraping after this many consecutive "not found" or 404 errors
+MAX_CONSECUTIVE_MISSES = 20
 
 # Output file (will resume if exists)
 OUTPUT_FILE = "../data/turnbackhoax_articles_by_id.csv"
+SKIPPED_FILE = "../data/skipped_article_ids.csv"
 
 # Delay between requests (seconds) - be polite to the server
 REQUEST_DELAY = 1.0
@@ -40,6 +44,13 @@ MAX_RETRIES = 3
 
 # Delay between retries (seconds)
 RETRY_DELAY = 2.0
+
+# Define CSV columns globally
+CSV_COLUMNS = [
+    'article_id', 'url', 'full_title', 'category', 'date', 'media',
+    'cover_image_url', 'hasil_periksa_fakta', 'kategori_berita', 'sumber',
+    'narasi', 'penjelasan', 'kesimpulan', 'referensi', 'error', 'scraped_at'
+]
 
 # ============================================================================
 # DO NOT EDIT BELOW THIS LINE
@@ -278,19 +289,64 @@ def scrape_article(article_id, max_retries=3, retry_delay=2.0):
     }
 
 
-def get_scraped_ids(output_file):
-    """Get set of article IDs already scraped."""
-    if not os.path.exists(output_file):
-        return set()
+def save_result(result):
+    """Save a single result to CSV, ensuring column consistency."""
+    if not result:
+        return
+        
+    # Ensure all columns exist
+    for col in CSV_COLUMNS:
+        if col not in result:
+            result[col] = ""
+            
+    # Create DataFrame with enforced column order
+    df = pd.DataFrame([result], columns=CSV_COLUMNS)
     
-    try:
-        df = pd.read_csv(output_file, encoding='utf-8')
-        if 'article_id' in df.columns:
-            return set(df['article_id'].dropna().astype(int).unique())
-    except Exception as e:
-        print(f"Warning: Could not read existing file: {e}")
+    # Append to CSV
+    # If file doesn't exist, write header. If it does, don't.
+    header = not os.path.exists(OUTPUT_FILE)
+    df.to_csv(OUTPUT_FILE, mode='a', header=header, index=False, encoding='utf-8')
+
+
+def save_skipped(article_id, url, status_code, description):
+    """Save a skipped/404 article to the skipped file."""
+    skip_record = {
+        'article_id': article_id,
+        'url': url,
+        'status_code': status_code,
+        'status_description': description
+    }
     
-    return set()
+    df = pd.DataFrame([skip_record])
+    
+    # Append to CSV
+    header = not os.path.exists(SKIPPED_FILE)
+    df.to_csv(SKIPPED_FILE, mode='a', header=header, index=False, encoding='utf-8')
+
+
+def get_scraped_ids(output_file, skipped_file=None):
+    """Get set of article IDs already scraped or skipped."""
+    scraped = set()
+    
+    # 1. Read successful scrapes
+    if os.path.exists(output_file):
+        try:
+            df = pd.read_csv(output_file, encoding='utf-8')
+            if 'article_id' in df.columns:
+                scraped.update(df['article_id'].dropna().astype(int).unique())
+        except Exception as e:
+            print(f"Warning: Could not read output file: {e}")
+            
+    # 2. Read skipped IDs (404s)
+    if skipped_file and os.path.exists(skipped_file):
+        try:
+            df = pd.read_csv(skipped_file, encoding='utf-8')
+            if 'article_id' in df.columns:
+                scraped.update(df['article_id'].dropna().astype(int).unique())
+        except Exception as e:
+            print(f"Warning: Could not read skipped file: {e}")
+    
+    return scraped
 
 
 def main():
@@ -301,15 +357,16 @@ def main():
     print()
     print(f"Article ID range: {START_ARTICLE_ID} to {END_ARTICLE_ID}")
     print(f"Total IDs to check: {END_ARTICLE_ID - START_ARTICLE_ID + 1}")
+    print(f"Stop threshold: {MAX_CONSECUTIVE_MISSES} consecutive misses")
     print(f"Output file: {OUTPUT_FILE}")
     print(f"Request delay: {REQUEST_DELAY}s")
     print(f"Max retries: {MAX_RETRIES}")
     print()
     
     # Get already scraped IDs
-    scraped_ids = get_scraped_ids(OUTPUT_FILE)
+    scraped_ids = get_scraped_ids(OUTPUT_FILE, SKIPPED_FILE)
     if scraped_ids:
-        print(f"Already scraped: {len(scraped_ids)} articles")
+        print(f"Already scraped/skipped: {len(scraped_ids)} articles")
         print(f"Resuming from where we left off...")
     
     # Determine IDs to scrape
@@ -323,16 +380,16 @@ def main():
         print("All articles already scraped!")
         return
     
-    # Create CSV with headers if it doesn't exist
+    # Create CSV with headers if it doesn't exist (handled by save_result now, but good to init)
     if not os.path.exists(OUTPUT_FILE):
-        columns = [
-            'article_id', 'url', 'full_title', 'category', 'date', 'media',
-            'cover_image_url', 'hasil_periksa_fakta', 'kategori_berita', 'sumber',
-            'narasi', 'penjelasan', 'kesimpulan', 'referensi', 'error', 'scraped_at'
-        ]
-        empty_df = pd.DataFrame(columns=columns)
+        empty_df = pd.DataFrame(columns=CSV_COLUMNS)
         empty_df.to_csv(OUTPUT_FILE, index=False, encoding='utf-8')
         print(f"Created new output file: {OUTPUT_FILE}")
+        
+    # Create Skipped CSV header if it doesn't exist
+    if not os.path.exists(SKIPPED_FILE):
+        skipped_df = pd.DataFrame(columns=['article_id', 'url', 'status_code', 'status_description'])
+        skipped_df.to_csv(SKIPPED_FILE, index=False, encoding='utf-8')
     
     # Statistics
     stats = {
@@ -345,6 +402,7 @@ def main():
     print("Starting scrape...")
     print("-" * 70)
     
+    consecutive_misses = 0
     pbar = tqdm(ids_to_scrape, desc="Scraping")
     
     for article_id in pbar:
@@ -355,32 +413,42 @@ def main():
         if result is None:
             # Article doesn't exist (404)
             stats['not_found'] += 1
-            pbar.set_postfix({
-                'found': stats['scraped'], 
-                '404': stats['not_found'], 
-                'err': stats['errors']
-            })
+            consecutive_misses += 1
+            
+            # Save to skipped file instead of main file
+            save_skipped(article_id, f"{BASE_URL}/{article_id}", 404, "Not Found")
+            
         elif result.get('error'):
             # Error occurred
             stats['errors'] += 1
-            # Save error record
-            df = pd.DataFrame([result])
-            df.to_csv(OUTPUT_FILE, mode='a', header=False, index=False, encoding='utf-8')
-            pbar.set_postfix({
-                'found': stats['scraped'], 
-                '404': stats['not_found'], 
-                'err': stats['errors']
-            })
+            
+            # If "No article content found", count as miss
+            if 'No article content found' in result.get('error', ''):
+                consecutive_misses += 1
+                save_skipped(article_id, result.get('url'), 200, "No article content found")
+            else:
+                consecutive_misses = 0
+                # Save actual errors (timeouts, etc) to main file
+                save_result(result)
         else:
             # Successfully scraped
             stats['scraped'] += 1
-            df = pd.DataFrame([result])
-            df.to_csv(OUTPUT_FILE, mode='a', header=False, index=False, encoding='utf-8')
-            pbar.set_postfix({
-                'found': stats['scraped'], 
-                '404': stats['not_found'], 
-                'err': stats['errors']
-            })
+            consecutive_misses = 0
+            
+            # Save result (success only)
+            save_result(result)
+
+        pbar.set_postfix({
+            'found': stats['scraped'], 
+            '404': stats['not_found'], 
+            'err': stats['errors'],
+            'streak': consecutive_misses
+        })
+
+        if consecutive_misses >= MAX_CONSECUTIVE_MISSES:
+            pbar.close()
+            print(f"\n\nStopping: Reached {MAX_CONSECUTIVE_MISSES} consecutive misses.")
+            break
         
         # Delay between requests
         time.sleep(REQUEST_DELAY)
