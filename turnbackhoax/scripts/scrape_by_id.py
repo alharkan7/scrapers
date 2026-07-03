@@ -26,8 +26,8 @@ from datetime import datetime
 # CONFIGURATION - Edit these values
 # ============================================================================
 
-START_ARTICLE_ID = 1      # Starting article ID (1 for full scrape)
-END_ARTICLE_ID = 33000   # Ending article ID (set high, script will stop automatically)
+START_ARTICLE_ID = 32514      # Starting article ID (1 for full scrape)
+END_ARTICLE_ID = 35550   # Ending article ID (set high, script will stop automatically)
 
 # Stop scraping after this many consecutive "not found" or 404 errors
 MAX_CONSECUTIVE_MISSES = 20

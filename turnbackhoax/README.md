@@ -1,36 +1,47 @@
 # Turn Back Hoax Scraper
 
-A comprehensive Python scraper for [turnbackhoax.id](https://turnbackhoax.id) that can scrape headlines, full article content, and process scraped data.
+A comprehensive Python scraper for [turnbackhoax.id](https://turnbackhoax.id) that can scrape headlines, full article content, and process/clean scraped data.
 
 ## Directory Structure
 
 ```
 turnbackhoax/
-├── scripts/          # Python scripts for scraping and analysis
+├── scripts/                  # Python scripts for scraping and analysis
 │   ├── scrape_by_id.py              # Main scraper by article ID
 │   ├── scraping_turn_back_hoax.py   # Alternative scraper (Google Sheets)
 │   ├── scraping_turnbackhoax_v1.py  # Version 1 scraper
-│   ├── clean_data.py                # Data cleaning utilities
-│   ├── combine_csv.py               # CSV combination tool
-│   ├── find_skipped_ids.py          # Find missing article IDs
-│   └── analyze_date_outliers.py     # Analyze date anomalies
-├── data/             # CSV files and scraped data
-│   ├── turnbackhoax_articles_by_id.csv  # Main dataset
-│   ├── date_outliers.csv                # Date outlier analysis
-│   └── skipped_article_ids.csv          # Missing IDs list
-├── reports/          # Documentation and analysis reports
-│   ├── DATE_OUTLIERS_REPORT.md      # Date outlier investigation
-│   ├── OUTLIERS_QUICK_REF.md        # Quick reference guide
-│   └── MISSING_PAGES_REPORT.md      # Missing pages analysis
-├── requirements.txt  # Python dependencies
-└── README.md        # This file
+│   ├── process_data/                # Data processing and investigation scripts
+│   │   ├── deep_investigate.py      # Investigates patterns for programmatic data filling
+│   │   ├── investigate_unparsed.py  # Scans for missing/unparsed data across columns
+│   │   ├── transform_data.py        # Extracts sources (e.g., social media mentions) from text
+│   │   └── verify_transformation.py # Compares raw vs processed data to ensure integrity
+│   └── tools/                       # Cleaning & utility scripts
+│       ├── analyze_date_outliers.py # Finds date anomalies in scraped data
+│       ├── clean_data.py            # Cleans HTML/JS, normalizes fonts, standardizes quotes
+│       ├── combine_csv.py           # Combines different CSVs and removes URL duplicates
+│       ├── find_skipped_ids.py      # Re-checks skipped URLs (404s)
+│       ├── fix_multiline_csv.py     # Fixes broken CSV formatting (newlines inside fields)
+│       └── merge_turnbackhoax.py    # Merges and standardizes current data with older datasets
+├── data/                     # CSV files and scraped data
+│   ├── turnbackhoax_articles_by_id.csv          # Main dataset
+│   ├── turnbackhoax_articles_by_id_fixed.csv    # Multi-line fixed dataset
+│   ├── turnbackhoax_articles_fixed_processed.csv# Processed and transformed data
+│   ├── merged_turnbackhoax_data.csv             # Data merged with older 2024 dataset
+│   ├── date_outliers.csv                        # Date outlier analysis
+│   └── skipped_article_ids.csv                  # Missing IDs list (404s)
+├── reports/                  # Documentation and analysis reports
+│   ├── DATE_OUTLIERS_REPORT.md
+│   ├── OUTLIERS_QUICK_REF.md
+│   └── MISSING_PAGES_REPORT.md
+├── requirements.txt          # Python dependencies
+└── README.md                 # This file
 ```
 
 ## Features
 
-1. **Scrape Headlines**: Extract article headlines, URLs, previews, images, dates, and authors from multiple pages
-2. **Scrape Full Articles**: Download complete article content including categories from URLs listed in a Google Sheet
-3. **Clean Data**: Process and clean scraped data with custom text formatting
+1. **Scrape Full Articles**: Incrementally scrape complete article content, categories, text blocks, and images by iterating through article IDs.
+2. **Process Data**: Investigate scraped data for unparsed text and programmatically extract primary source platforms from text.
+3. **Clean Data**: Standardize formatting, repair broken multi-line CSV rows, and merge older datasets while removing duplicates.
 
 ## Installation
 
@@ -40,131 +51,70 @@ turnbackhoax/
 pip install -r requirements.txt
 ```
 
-Or if you're using Python 3:
-
-```bash
-pip3 install -r requirements.txt
-```
-
-## Configuration
-
-Before running the scraper, edit the configuration variables at the top of `scraping_turn_back_hoax.py`:
-
-```python
-# Page range for scraping headlines
-START_PAGE = 1
-END_PAGE = 226
-
-# Google Sheet configuration for article scraping
-SHEET_ID = ""  # Your Google Sheet ID
-SHEET_NAME = ""  # Your Google Sheet gid
-```
+*(Or use `pip3 install -r requirements.txt` depending on your environment)*
 
 ## Usage
 
-All scripts are located in the `scripts/` directory. Run them from the project root:
+All scripts are located in the `scripts/` directory.
 
 ### 1. Scrape Articles by ID (Recommended)
 
-The main scraper that iterates through article IDs:
+The main scraper that iterates through article IDs. This script automatically skips already-scraped IDs to resume safely.
 
 ```bash
 cd scripts
 python3 scrape_by_id.py
 ```
 
-Edit `scrape_by_id.py` to configure:
+Edit the top of `scrape_by_id.py` to configure:
 - `START_ARTICLE_ID` and `END_ARTICLE_ID`
-- Request delay and retry settings
+- `MAX_CONSECUTIVE_MISSES` (stop threshold for 404s)
 
-**Output**: `data/turnbackhoax_articles_by_id.csv`
+**Outputs**: 
+- `data/turnbackhoax_articles_by_id.csv`
+- `data/skipped_article_ids.csv`
 
-### 2. Scrape Headlines (Legacy)
+### 2. Data Processing & Investigation
 
-Scrape article headlines from multiple pages:
-
-```bash
-cd scripts
-python3 scraping_turn_back_hoax.py headlines
-```
-
-With custom page range:
+These scripts analyze the extracted CSVs and transform raw text into structured data. Run these from the `scripts/` directory:
 
 ```bash
-python3 scraping_turn_back_hoax.py headlines --start 1 --end 10
+# Clean up multi-line CSV breaking issues first
+python3 tools/fix_multiline_csv.py
+
+# Investigate what data is missing/unparsed
+python3 process_data/investigate_unparsed.py
+python3 process_data/deep_investigate.py
+
+# Transform text (e.g., extracting social media sources)
+python3 process_data/transform_data.py
+
+# Verify that transformations didn't lose data
+python3 process_data/verify_transformation.py
 ```
 
-**Output**: `data/turnbackhoax_headlines_TIMESTAMP.csv`
+### 3. Data Cleaning & Merging Tools
 
-### 3. Scrape Full Articles (Legacy)
-
-Scrape full article content from URLs in a Google Sheet:
+Utility scripts are located in `scripts/tools/` to clean and merge datasets:
 
 ```bash
-cd scripts
-python3 scraping_turn_back_hoax.py articles
+# Comprehensive data cleaning (removes HTML, ad text, normalizes quotes)
+python3 tools/clean_data.py
+
+# Merge with older 2024 dataset
+python3 tools/merge_turnbackhoax.py
+
+# Re-check your skipped 404 URLs to see if they are actually online
+python3 tools/find_skipped_ids.py
 ```
 
-With custom Google Sheet:
+### 4. Legacy Scrapers
 
-```bash
-python3 scraping_turn_back_hoax.py articles --sheet-id YOUR_SHEET_ID --sheet-name YOUR_SHEET_NAME
-```
-
-**Requirements**:
-- Column C (index 2): Article URLs
-- Column H (index 7): Boolean flag (True = scrape this article)
-
-**Output**: `turnbackhoax_articles_TIMESTAMP.csv`
-
-### 3. Clean Data
-
-Process and clean data from Google Sheet:
-
-```bash
-python3 scraping_turn_back_hoax.py clean
-```
-
-**Output**: 
-- `processed_sheet_TIMESTAMP.csv`
-- `processed_column_g_TIMESTAMP.txt`
-
-## Command-Line Arguments
-
-- `mode`: Required. Choose from `headlines`, `articles`, or `clean`
-- `--start`: Starting page number (for headlines mode)
-- `--end`: Ending page number (for headlines mode)
-- `--sheet-id`: Google Sheet ID (overrides config)
-- `--sheet-name`: Google Sheet name/gid (overrides config)
-
-## Examples
-
-```bash
-# Scrape headlines from pages 1-50
-python3 scraping_turn_back_hoax.py headlines --start 1 --end 50
-
-# Scrape articles from specific Google Sheet
-python3 scraping_turn_back_hoax.py articles --sheet-id "1abc..." --sheet-name "0"
-
-# Clean data
-python3 scraping_turn_back_hoax.py clean
-```
-
-## Output Files
-
-All output files are saved with timestamps to avoid overwriting:
-
-- Headlines: `turnbackhoax_headlines_YYYYMMDD_HHMMSS.csv`
-- Articles: `turnbackhoax_articles_YYYYMMDD_HHMMSS.csv`
-- Cleaned data: `processed_sheet_YYYYMMDD_HHMMSS.csv` and `processed_column_g_YYYYMMDD_HHMMSS.txt`
+*(See `scraping_turn_back_hoax.py` if you need to scrape URLs directly from a Google Sheet).*
 
 ## Rate Limiting
 
-The scraper includes a 1-second delay between requests to be respectful to the server. Do not modify this unless you have permission from the site owner.
-
-## Original Source
-
-This script is a Python conversion of the original Jupyter notebook: `Scraping_Turn_Back_Hoax.ipynb`
+The main scraper includes a built-in 1-second delay between requests to be respectful to the server. Do not modify this unless you have permission from the site owner.
 
 ## Dependencies
 
@@ -172,8 +122,8 @@ This script is a Python conversion of the original Jupyter notebook: `Scraping_T
 - `beautifulsoup4`: HTML parsing library
 - `pandas`: Data manipulation and CSV handling
 - `tqdm`: Progress bar display
-- `lxml`: XML/HTML parser (optional but recommended for better performance)
+- `lxml`: XML/HTML parser (optional but recommended)
 
 ## License
 
-Please respect the website's robots.txt and terms of service when scraping.
+Please respect the website's `robots.txt` and terms of service when scraping.
