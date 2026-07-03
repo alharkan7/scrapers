@@ -1,0 +1,43 @@
+ADVANCED ANALYSIS FINDINGS
+============================================================
+
+1. TEMPORAL ANALYSIS (Monthly Spikes)
+----------------------------------------
+robust_category  Politik  Ekonomi/Scam  Kesehatan
+month                                            
+2026-01              247           133         29
+2026-02              139           166         23
+2026-03              260           122          9
+2026-04              309           104         57
+2026-05              229           218        175
+2026-06              148           135         57
+
+2. CROSS-TABULATION (Category vs. Platform)
+----------------------------------------
+platform         Facebook  WhatsApp  TikTok  Instagram
+robust_category                                       
+Politik               967        23     110        115
+Ekonomi/Scam          498       115     249          5
+Kesehatan             301         1      10         34
+
+Chi-Square Statistic: 420.23
+P-value: 1.2502e-87
+-> Result: STATISTICALLY SIGNIFICANT relationship between category and platform.
+
+3. TOPIC MODELING (Latent Dirichlet Allocation)
+----------------------------------------
+Topic 1:
+pendaftaran | tautan | 2026 | penipuan | bantuan | link | purbaya | lowongan | kerja | gratis
+
+Topic 2:
+prabowo | purbaya | bantuan | dana | presiden | hibah | rakyat | keliru | listrik | gibran
+
+Topic 3:
+indonesia | guru | prabowo | keliru | israel | undian | hantavirus | pemerintah | asn | negara
+
+Topic 4:
+jokowi | keliru | indonesia | 2026 | israel | desa | purbaya | netanyahu | motor | triliun
+
+Topic 5:
+iran | keliru | as | israel | indonesia | vaksin | bantuan | trump | juta | 2026
+
