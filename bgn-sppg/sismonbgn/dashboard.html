@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SismonBGN Dashboard</title>
+    
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <style>
+        :root {
+            --bg-color: #0f172a;
+            --panel-bg: rgba(30, 41, 59, 0.7);
+            --panel-border: rgba(255, 255, 255, 0.1);
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --accent-1: #38bdf8;
+            --accent-2: #818cf8;
+            --accent-3: #f472b6;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Inter', sans-serif;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            background-image: 
+                radial-gradient(circle at 15% 50%, rgba(56, 189, 248, 0.05) 0%, transparent 50%),
+                radial-gradient(circle at 85% 30%, rgba(129, 140, 248, 0.05) 0%, transparent 50%);
+            color: var(--text-main);
+            min-height: 100vh;
+            padding: 2rem;
+            overflow-x: hidden;
+        }
+
+        .header {
+            margin-bottom: 2rem;
+            animation: fadeInDown 0.8s ease-out;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            font-weight: 700;
+            background: linear-gradient(to right, var(--accent-1), var(--accent-2));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 0.5rem;
+        }
+
+        .header p {
+            color: var(--text-muted);
+            font-size: 1.1rem;
+        }
+
+        /* Error Banner */
+        #error-banner {
+            display: none;
+            background: rgba(239, 68, 68, 0.2);
+            border: 1px solid rgba(239, 68, 68, 0.4);
+            color: #fca5a5;
+            padding: 1rem;
+            border-radius: 12px;
+            margin-bottom: 2rem;
+            backdrop-filter: blur(10px);
+        }
+        
+        #error-banner code {
+            background: rgba(0,0,0,0.3);
+            padding: 0.2rem 0.4rem;
+            border-radius: 4px;
+            color: white;
+        }
+
+        /* Dashboard Grid */
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: repeat(12, 1fr);
+            gap: 1.5rem;
+            opacity: 0;
+            transform: translateY(20px);
+            animation: fadeInUp 0.8s ease-out forwards;
+            animation-delay: 0.2s;
+        }
+
+        .panel {
+            background: var(--panel-bg);
+            border: 1px solid var(--panel-border);
+            border-radius: 16px;
+            padding: 1.5rem;
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .panel:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.2), 0 4px 6px -2px rgba(0, 0, 0, 0.1);
+        }
+
+        .panel-header {
+            font-size: 1.2rem;
+            font-weight: 600;
+            margin-bottom: 1rem;
+            color: var(--text-main);
+            display: flex;
+            align-items: center;
+        }
+
+        /* Specific Panel Sizes */
+        .kpi-panel { grid-column: span 4; display: flex; flex-direction: column; justify-content: center; align-items: center;}
+        @media (max-width: 1024px) { .kpi-panel { grid-column: span 12; } }
+        
+        .chart-panel-half { grid-column: span 6; min-height: 350px; }
+        @media (max-width: 1024px) { .chart-panel-half { grid-column: span 12; } }
+        
+        .chart-panel-full { grid-column: span 12; min-height: 400px; }
+
+        /* KPI Specifics */
+        .kpi-value {
+            font-size: 3.5rem;
+            font-weight: 700;
+            margin-top: 0.5rem;
+            background: linear-gradient(135deg, var(--accent-1), var(--accent-3));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .kpi-label {
+            color: var(--text-muted);
+            font-size: 1rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        /* Loader */
+        .loader {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 200px;
+            color: var(--text-muted);
+            font-size: 1.2rem;
+            grid-column: span 12;
+        }
+
+        .spinner {
+            border: 4px solid rgba(255,255,255,0.1);
+            border-left-color: var(--accent-1);
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin-right: 15px;
+        }
+
+        /* Animations */
+        @keyframes fadeInDown {
+            from { opacity: 0; transform: translateY(-20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        canvas {
+            width: 100% !important;
+            height: 100% !important;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <h1>SismonBGN Analytics</h1>
+        <p>Interactive dashboard visualizing operational SPPG data.</p>
+    </div>
+
+    <div id="error-banner">
+        <strong>Error Loading Data:</strong> Due to browser security (CORS), local files cannot be loaded directly. 
+        <br><br>
+        Please run a local server to view this dashboard. Open your terminal in this directory and run: 
+        <br><br>
+        <code>python3 -m http.server 8000</code>
+        <br><br>
+        Then open <a href="http://localhost:8000/dashboard.html" style="color: white; text-decoration: underline;">http://localhost:8000/dashboard.html</a> in your browser.
+    </div>
+
+    <div id="loader" class="loader">
+        <div class="spinner"></div>
+        Processing Data...
+    </div>
+
+    <div class="dashboard-grid" id="dashboard" style="display: none;">
+        
+        <!-- KPI 1 -->
+        <div class="panel kpi-panel">
+            <div class="kpi-label">Total SPPG</div>
+            <div class="kpi-value" id="kpi-total">0</div>
+        </div>
+
+        <!-- KPI 2 -->
+        <div class="panel kpi-panel">
+            <div class="kpi-label">Beroperasi</div>
+            <div class="kpi-value" id="kpi-operating">0</div>
+        </div>
+
+        <!-- KPI 3 -->
+        <div class="panel kpi-panel">
+            <div class="kpi-label">Provinsi Tercover</div>
+            <div class="kpi-value" id="kpi-provinces">0</div>
+        </div>
+
+        <!-- Chart 1: Status Pengajuan (Pie) -->
+        <div class="panel chart-panel-half">
+            <div class="panel-header">Status Pengajuan</div>
+            <div style="position: relative; height: 300px; width: 100%;">
+                <canvas id="pengajuanChart"></canvas>
+            </div>
+        </div>
+
+        <!-- Chart 2: Status Operasional (Doughnut) -->
+        <div class="panel chart-panel-half">
+            <div class="panel-header">Status Operasional</div>
+            <div style="position: relative; height: 300px; width: 100%;">
+                <canvas id="operasionalChart"></canvas>
+            </div>
+        </div>
+
+        <!-- Chart 3: Top Provinsi (Bar) -->
+        <div class="panel chart-panel-full">
+            <div class="panel-header">Distribusi per Provinsi</div>
+            <div style="position: relative; height: 350px; width: 100%;">
+                <canvas id="provinsiChart"></canvas>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        // Set default Chart.js aesthetics for dark mode
+        Chart.defaults.color = '#94a3b8';
+        Chart.defaults.font.family = "'Inter', sans-serif";
+        Chart.defaults.plugins.tooltip.backgroundColor = 'rgba(15, 23, 42, 0.9)';
+        Chart.defaults.plugins.tooltip.titleColor = '#fff';
+        Chart.defaults.plugins.tooltip.bodyColor = '#e2e8f0';
+        Chart.defaults.plugins.tooltip.borderColor = 'rgba(255,255,255,0.1)';
+        Chart.defaults.plugins.tooltip.borderWidth = 1;
+        Chart.defaults.plugins.tooltip.padding = 10;
+        Chart.defaults.plugins.tooltip.cornerRadius = 8;
+        
+        const COLORS = [
+            '#38bdf8', // Light blue
+            '#818cf8', // Indigo
+            '#f472b6', // Pink
+            '#34d399', // Emerald
+            '#fbbf24', // Amber
+            '#a78bfa', // Purple
+            '#f87171'  // Red
+        ];
+
+        async function initDashboard() {
+            try {
+                // Try fetching the JSON data
+                const response = await fetch('output/sismon_data.json');
+                if (!response.ok) throw new Error('Network response was not ok');
+                
+                const data = await response.json();
+                
+                // Hide loader, show dashboard
+                document.getElementById('loader').style.display = 'none';
+                document.getElementById('dashboard').style.display = 'grid';
+                
+                processData(data);
+                
+            } catch (error) {
+                console.error("Error loading data:", error);
+                document.getElementById('loader').style.display = 'none';
+                // Show CORS error banner if fetch fails (usually happens when opening file:// directly)
+                document.getElementById('error-banner').style.display = 'block';
+            }
+        }
+
+        function processData(data) {
+            // Calculate KPIs
+            const totalSPPG = data.length;
+            
+            // Aggregations
+            const statusPengajuanCounts = {};
+            const statusOperasionalCounts = {};
+            const provinsiCounts = {};
+            
+            let operatingCount = 0;
+
+            data.forEach(row => {
+                const pengajuan = row['Status Pengajuan'] || 'Unknown';
+                const operasional = row['Status Operasional'] || 'Unknown';
+                const provinsi = row['Provinsi'] || 'Unknown';
+                
+                statusPengajuanCounts[pengajuan] = (statusPengajuanCounts[pengajuan] || 0) + 1;
+                statusOperasionalCounts[operasional] = (statusOperasionalCounts[operasional] || 0) + 1;
+                provinsiCounts[provinsi] = (provinsiCounts[provinsi] || 0) + 1;
+                
+                if (operasional.toLowerCase().includes('beroperasi') && !operasional.toLowerCase().includes('belum')) {
+                    operatingCount++;
+                }
+            });
+
+            // Update KPIs with animation
+            animateValue("kpi-total", 0, totalSPPG, 1500);
+            animateValue("kpi-operating", 0, statusOperasionalCounts['Beroperasi'] || operatingCount, 1500);
+            animateValue("kpi-provinces", 0, Object.keys(provinsiCounts).length, 1500);
+
+            // Render Charts
+            renderPieChart('pengajuanChart', statusPengajuanCounts);
+            renderDoughnutChart('operasionalChart', statusOperasionalCounts);
+            renderBarChart('provinsiChart', provinsiCounts);
+        }
+
+        // Animated Number Counter
+        function animateValue(id, start, end, duration) {
+            if (start === end) return;
+            let current = start;
+            const range = end - start;
+            const increment = end > start ? 1 : -1;
+            const stepTime = Math.abs(Math.floor(duration / range));
+            const obj = document.getElementById(id);
+            
+            const timer = setInterval(function() {
+                current += Math.max(1, Math.floor(range / (duration/16))); 
+                if (current >= end) {
+                    current = end;
+                    clearInterval(timer);
+                }
+                obj.innerHTML = current.toLocaleString();
+            }, 16);
+        }
+
+        function renderPieChart(ctxId, dataObj) {
+            const labels = Object.keys(dataObj);
+            const data = Object.values(dataObj);
+            
+            new Chart(document.getElementById(ctxId), {
+                type: 'pie',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        data: data,
+                        backgroundColor: COLORS.slice(0, labels.length),
+                        borderWidth: 0,
+                        hoverOffset: 10
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'right', labels: { padding: 20, usePointStyle: true } }
+                    }
+                }
+            });
+        }
+
+        function renderDoughnutChart(ctxId, dataObj) {
+            const labels = Object.keys(dataObj);
+            const data = Object.values(dataObj);
+            
+            new Chart(document.getElementById(ctxId), {
+                type: 'doughnut',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        data: data,
+                        backgroundColor: [COLORS[3], COLORS[6], COLORS[4], COLORS[1], COLORS[0]],
+                        borderWidth: 0,
+                        cutout: '70%',
+                        hoverOffset: 10
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'right', labels: { padding: 20, usePointStyle: true } }
+                    }
+                }
+            });
+        }
+
+        function renderBarChart(ctxId, dataObj) {
+            // Sort provinces by count descending
+            const sortedEntries = Object.entries(dataObj).sort((a, b) => b[1] - a[1]);
+            // Take top 20 for readability if there are many
+            const topEntries = sortedEntries.slice(0, 20);
+            
+            const labels = topEntries.map(e => e[0]);
+            const data = topEntries.map(e => e[1]);
+            
+            // Create gradient
+            const ctx = document.getElementById(ctxId).getContext('2d');
+            const gradient = ctx.createLinearGradient(0, 0, 0, 400);
+            gradient.addColorStop(0, 'rgba(56, 189, 248, 0.8)');
+            gradient.addColorStop(1, 'rgba(129, 140, 248, 0.2)');
+
+            new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Jumlah SPPG',
+                        data: data,
+                        backgroundColor: gradient,
+                        borderColor: '#38bdf8',
+                        borderWidth: 1,
+                        borderRadius: 6,
+                        barPercentage: 0.6
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            grid: { color: 'rgba(255, 255, 255, 0.05)' },
+                            ticks: { precision: 0 }
+                        },
+                        x: {
+                            grid: { display: false },
+                            ticks: { maxRotation: 45, minRotation: 45 }
+                        }
+                    },
+                    plugins: {
+                        legend: { display: false }
+                    },
+                    animation: {
+                        duration: 2000,
+                        easing: 'easeOutQuart'
+                    }
+                }
+            });
+        }
+
+        // Initialize when DOM is ready
+        document.addEventListener('DOMContentLoaded', initDashboard);
+    </script>
+</body>
+</html>
