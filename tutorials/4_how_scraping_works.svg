@@ -1,0 +1,101 @@
+<svg viewBox="0 0 800 1300" width="800" height="1300" xmlns="http://www.w3.org/2000/svg" style="font-family: Inter, Helvetica Neue, Arial, sans-serif;">
+  <defs>
+    <filter id="shadow" x="-5%" y="-5%" width="110%" height="110%">
+      <feDropShadow dx="0" dy="6" stdDeviation="8" flood-color="#a0b0c0" flood-opacity="0.2" />
+    </filter>
+    <filter id="icon-shadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="4" stdDeviation="4" flood-color="#a0b0c0" flood-opacity="0.25" />
+    </filter>
+  </defs>
+
+  <!-- Background -->
+  <rect width="800" height="1300" fill="#fafcff" />
+
+  <!-- Titles -->
+  <text x="400" y="80" font-size="34" font-weight="bold" fill="#0f172a" text-anchor="middle">How Web Scraping Works</text>
+  <text x="400" y="115" font-size="18" fill="#64748b" text-anchor="middle" font-weight="500">The 4-Steps</text>
+
+  <!-- Vertical Track -->
+  <rect x="396" y="140" width="8" height="1080" fill="#e2e8f0" rx="4" />
+  
+  <!-- Flow Arrows (on the track) -->
+  <path d="M 388 410 L 400 422 L 412 410" fill="none" stroke="#94a3b8" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" />
+  <path d="M 388 680 L 400 692 L 412 680" fill="none" stroke="#94a3b8" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" />
+  <path d="M 388 950 L 400 962 L 412 950" fill="none" stroke="#94a3b8" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" />
+
+  <!-- ================= CARD 1 ================= -->
+  <!-- Box -->
+  <rect x="200" y="180" width="400" height="200" rx="16" fill="#f5f9ff" stroke="#d4e4f7" stroke-width="2" filter="url(#shadow)" />
+  <text x="520" y="315" font-size="100" opacity="0.08" text-anchor="middle">🌐</text>
+  
+  <text x="250" y="235" font-size="20" font-weight="bold" fill="#00477a">1. Requesting</text>
+  <text x="395" y="235" font-size="16" fill="#00477a" font-weight="bold">(Fetching the Page)</text>
+
+  <text x="250" y="275" font-size="14" fill="#00477a">
+    <tspan x="250" dy="0">• Python acts like your web browser</tspan>
+    <tspan x="250" dy="28">• Sends a "GET request" to the site</tspan>
+    <tspan x="250" dy="28">• Downloads the raw HTML code</tspan>
+  </text>
+
+  <!-- Corner Icon Pad -->
+  <circle cx="200" cy="180" r="30" fill="#ffffff" stroke="#d4e4f7" stroke-width="2" filter="url(#icon-shadow)" />
+  <text x="200" y="190" font-size="28" text-anchor="middle">📥</text>
+
+  <!-- ================= CARD 2 ================= -->
+  <!-- Box -->
+  <rect x="200" y="450" width="400" height="200" rx="16" fill="#fff9f9" stroke="#f6dce0" stroke-width="2" filter="url(#shadow)" />
+  <text x="520" y="585" font-size="100" opacity="0.08" text-anchor="middle">🔍</text>
+  
+  <text x="250" y="505" font-size="20" font-weight="bold" fill="#8f000b">2. Extracting</text>
+  <text x="395" y="505" font-size="16" fill="#8f000b" font-weight="bold">(Parsing the Data)</text>
+
+  <text x="250" y="545" font-size="14" fill="#8f000b">
+    <tspan x="250" dy="0">• Translates messy HTML into a tree</tspan>
+    <tspan x="250" dy="28">• Targets specific tags (e.g., &lt;h1&gt;)</tspan>
+    <tspan x="250" dy="28">• Ignores ads, sidebars, and footers</tspan>
+  </text>
+
+  <!-- Corner Icon Pad -->
+  <circle cx="200" cy="450" r="30" fill="#ffffff" stroke="#f6dce0" stroke-width="2" filter="url(#icon-shadow)" />
+  <text x="200" y="460" font-size="28" text-anchor="middle">🔍</text>
+
+  <!-- ================= CARD 3 ================= -->
+  <!-- Box -->
+  <rect x="200" y="720" width="400" height="200" rx="16" fill="#fcf5ff" stroke="#f3dcfb" stroke-width="2" filter="url(#shadow)" />
+  <text x="520" y="855" font-size="100" opacity="0.08" text-anchor="middle">🕷️</text>
+  
+  <text x="250" y="775" font-size="20" font-weight="bold" fill="#581c87">3. Navigating</text>
+  <text x="395" y="775" font-size="16" fill="#581c87" font-weight="bold">(Crawling &amp; Scaling)</text>
+
+  <text x="250" y="815" font-size="14" fill="#581c87">
+    <tspan x="250" dy="0">• Loops through sequential pages</tspan>
+    <tspan x="250" dy="28">• Spiders to find and save new links</tspan>
+    <tspan x="250" dy="28">• Automates the entire data collection</tspan>
+  </text>
+
+  <!-- Corner Icon Pad -->
+  <circle cx="200" cy="720" r="30" fill="#ffffff" stroke="#f3dcfb" stroke-width="2" filter="url(#icon-shadow)" />
+  <text x="200" y="730" font-size="28" text-anchor="middle">🕷️</text>
+
+  <!-- ================= CARD 4 ================= -->
+  <!-- Box -->
+  <rect x="200" y="990" width="400" height="200" rx="16" fill="#f4fcf7" stroke="#b2e3c6" stroke-width="2" filter="url(#shadow)" />
+  <text x="520" y="1125" font-size="100" opacity="0.08" text-anchor="middle">📊</text>
+  
+  <text x="250" y="1045" font-size="20" font-weight="bold" fill="#0e5927">4. Exporting</text>
+  <text x="390" y="1045" font-size="16" fill="#0e5927" font-weight="bold">(Structuring &amp; Saving)</text>
+
+  <text x="250" y="1085" font-size="14" fill="#0e5927">
+    <tspan x="250" dy="0">• Organizes data into rows &amp; columns</tspan>
+    <tspan x="250" dy="28">• Uses Pandas to create a DataFrame</tspan>
+    <tspan x="250" dy="28">• Saves locally as a .CSV or .XLSX file</tspan>
+  </text>
+
+  <!-- Corner Icon Pad -->
+  <circle cx="200" cy="990" r="30" fill="#ffffff" stroke="#b2e3c6" stroke-width="2" filter="url(#icon-shadow)" />
+  <text x="200" y="1000" font-size="28" text-anchor="middle">💾</text>
+
+  <!-- Footer -->
+  <text x="760" y="1260" font-size="14" font-weight="bold" fill="#94a3b8" text-anchor="end">@alhrkn</text>
+
+</svg>

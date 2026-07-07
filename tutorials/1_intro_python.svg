@@ -1,0 +1,104 @@
+<svg viewBox="0 0 1000 600" width="1000" height="600" xmlns="http://www.w3.org/2000/svg" style="font-family: Inter, Helvetica Neue, Arial, sans-serif;">
+  <defs>
+    <filter id="shadow" x="-5%" y="-5%" width="110%" height="110%">
+      <feDropShadow dx="0" dy="6" stdDeviation="8" flood-color="#a0b0c0" flood-opacity="0.2" />
+    </filter>
+    <filter id="icon-shadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="4" stdDeviation="4" flood-color="#a0b0c0" flood-opacity="0.25" />
+    </filter>
+    
+    <marker id="arrow" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 2 L 8 5 L 0 8 z" fill="#94a3b8" />
+    </marker>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1000" height="600" fill="#fafcff" />
+
+  <!-- Titles -->
+  <text x="500" y="70" font-size="34" font-weight="bold" fill="#0f172a" text-anchor="middle">Python: an Excel Analogy</text>
+
+  <!-- Arrows -->
+  <path d="M 320 320 L 355 320" stroke="#94a3b8" stroke-width="4" marker-end="url(#arrow)" />
+  <path d="M 640 320 L 675 320" stroke="#94a3b8" stroke-width="4" marker-end="url(#arrow)" />
+
+  <!-- ================= CARD 1 ================= -->
+  <!-- Box -->
+  <rect x="50" y="180" width="260" height="290" rx="16" fill="#f5f9ff" stroke="#d4e4f7" stroke-width="2" filter="url(#shadow)" />
+  <!-- Text -->
+  <text x="180" y="235" font-size="22" font-weight="bold" fill="#00477a" text-anchor="middle">1 Sentence</text>
+  <text x="180" y="260" font-size="16" fill="#00477a" font-weight="bold" text-anchor="middle">Python Statement</text>
+  <text x="180" y="290" font-size="13" fill="#00477a" text-anchor="middle">
+    <tspan x="180" dy="0">A single instruction, similar</tspan>
+    <tspan x="180" dy="16">to a standard Excel formula.</tspan>
+  </text>
+  
+  <!-- Code Blocks -->
+  <text x="70" y="340" font-size="12" font-weight="bold" fill="#00477a">Excel:</text>
+  <rect x="70" y="348" width="220" height="28" rx="4" fill="#e0ecfb" />
+  <text x="80" y="366" font-size="12" fill="#00477a" font-family="monospace">=SUM(A1:A10)</text>
+
+  <text x="70" y="400" font-size="12" font-weight="bold" fill="#00477a">Python:</text>
+  <rect x="70" y="408" width="220" height="28" rx="4" fill="#0f172a" />
+  <text x="80" y="426" font-size="12" fill="#60a5fa" font-family="monospace">total = sum(data)</text>
+
+  <!-- Icon Pad -->
+  <circle cx="180" cy="180" r="25" fill="#ffffff" stroke="#d4e4f7" stroke-width="2" filter="url(#icon-shadow)" />
+  <text x="180" y="188" font-size="24" text-anchor="middle">📝</text>
+
+
+  <!-- ================= CARD 2 ================= -->
+  <!-- Box -->
+  <rect x="370" y="180" width="260" height="290" rx="16" fill="#fcf5ff" stroke="#f3dcfb" stroke-width="2" filter="url(#shadow)" />
+  <!-- Text -->
+  <text x="500" y="235" font-size="22" font-weight="bold" fill="#581c87" text-anchor="middle">1 Paragraph</text>
+  <text x="500" y="260" font-size="16" fill="#581c87" font-weight="bold" text-anchor="middle">Python Function</text>
+  <text x="500" y="290" font-size="13" fill="#581c87" text-anchor="middle">
+    <tspan x="500" dy="0">A reusable block of multiple</tspan>
+    <tspan x="500" dy="16">instructions grouped together.</tspan>
+  </text>
+
+  <!-- Code Blocks -->
+  <text x="390" y="340" font-size="12" font-weight="bold" fill="#581c87">Excel:</text>
+  <rect x="390" y="348" width="220" height="28" rx="4" fill="#f3e0fb" />
+  <text x="400" y="366" font-size="12" fill="#581c87" font-family="monospace">Nested IF / Macro</text>
+
+  <text x="390" y="400" font-size="12" font-weight="bold" fill="#581c87">Python:</text>
+  <rect x="390" y="408" width="220" height="42" rx="4" fill="#0f172a" />
+  <text x="400" y="424" font-size="12" fill="#c084fc" font-family="monospace">def calc(data):</text>
+  <text x="415" y="440" font-size="12" fill="#94a3b8" font-family="monospace">return sum(data)</text>
+
+  <!-- Icon Pad -->
+  <circle cx="500" cy="180" r="25" fill="#ffffff" stroke="#f3dcfb" stroke-width="2" filter="url(#icon-shadow)" />
+  <text x="500" y="188" font-size="24" text-anchor="middle">⚙️</text>
+
+
+  <!-- ================= CARD 3 ================= -->
+  <!-- Box -->
+  <rect x="690" y="180" width="260" height="290" rx="16" fill="#f4fcf7" stroke="#b2e3c6" stroke-width="2" filter="url(#shadow)" />
+  <!-- Text -->
+  <text x="820" y="235" font-size="22" font-weight="bold" fill="#0e5927" text-anchor="middle">1 Page</text>
+  <text x="820" y="260" font-size="16" fill="#0e5927" font-weight="bold" text-anchor="middle">Python Script</text>
+  <text x="820" y="290" font-size="13" fill="#0e5927" text-anchor="middle">
+    <tspan x="820" dy="0">A complete file containing</tspan>
+    <tspan x="820" dy="16">many functions working together.</tspan>
+  </text>
+
+  <!-- Code Blocks -->
+  <text x="710" y="340" font-size="12" font-weight="bold" fill="#0e5927">Excel:</text>
+  <rect x="710" y="348" width="220" height="28" rx="4" fill="#e0fbe9" />
+  <text x="720" y="366" font-size="12" fill="#0e5927" font-family="monospace">Financial_Model.xlsx</text>
+
+  <text x="710" y="400" font-size="12" font-weight="bold" fill="#0e5927">Python:</text>
+  <rect x="710" y="408" width="220" height="42" rx="4" fill="#0f172a" />
+  <text x="720" y="424" font-size="12" fill="#4ade80" font-family="monospace">import pandas as pd</text>
+  <text x="720" y="440" font-size="12" fill="#4ade80" font-family="monospace">calc(data)</text>
+
+  <!-- Icon Pad -->
+  <circle cx="820" cy="180" r="25" fill="#ffffff" stroke="#b2e3c6" stroke-width="2" filter="url(#icon-shadow)" />
+  <text x="820" y="188" font-size="24" text-anchor="middle">📄</text>
+
+  <!-- Footer -->
+  <text x="960" y="570" font-size="14" font-weight="bold" fill="#94a3b8" text-anchor="end">@alhrkn</text>
+
+</svg>

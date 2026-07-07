@@ -1,0 +1,87 @@
+<svg viewBox="0 0 1000 700" width="1000" height="700" xmlns="http://www.w3.org/2000/svg" style="font-family: Inter, Helvetica Neue, Arial, sans-serif;">
+  <defs>
+    <filter id="shadow" x="-5%" y="-5%" width="110%" height="110%">
+      <feDropShadow dx="0" dy="6" stdDeviation="8" flood-color="#a0b0c0" flood-opacity="0.2" />
+    </filter>
+    
+    <marker id="arrow" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M 0 2 L 8 5 L 0 8 z" fill="#cbd5e1" />
+    </marker>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1000" height="700" fill="#fafcff" />
+
+  <!-- Titles -->
+  <text x="500" y="70" font-size="34" font-weight="bold" fill="#0f172a" text-anchor="middle">Intro Web Scraping</text>
+
+  <!-- Track (Path connecting cards) -->
+  <path d="M 150 240 L 725 240 C 920 240, 920 510, 725 510 L 220 510" fill="none" stroke="#e2e8f0" stroke-width="12" marker-end="url(#arrow)" />
+
+  <!-- ================= CARD 1 ================= -->
+  <!-- Box -->
+  <rect x="100" y="150" width="350" height="210" rx="16" fill="#f5f9ff" stroke="#d4e4f7" stroke-width="2" filter="url(#shadow)" />
+  <!-- Watermark -->
+  <text x="390" y="300" font-size="100" opacity="0.08" text-anchor="middle">🐍</text>
+  <!-- Text -->
+  <text x="130" y="195" font-size="20" font-weight="bold" fill="#00477a">1. Intro to Python</text>
+  <text x="130" y="230" font-size="14" fill="#00477a">
+    <tspan x="130" dy="0">• Think of Python like powerful</tspan>
+    <tspan x="140" dy="18">Excel formulas</tspan>
+    <tspan x="130" dy="22">• Use Jupyter Notebooks to run</tspan>
+    <tspan x="140" dy="18">code step-by-step</tspan>
+    <tspan x="130" dy="22">• Leverage libraries: Requests,</tspan>
+    <tspan x="140" dy="18">BeautifulSoup, Pandas</tspan>
+  </text>
+
+  <!-- ================= CARD 2 ================= -->
+  <!-- Box -->
+  <rect x="550" y="150" width="350" height="210" rx="16" fill="#fff9f9" stroke="#f6dce0" stroke-width="2" filter="url(#shadow)" />
+  <!-- Watermark -->
+  <text x="840" y="300" font-size="100" opacity="0.08" text-anchor="middle">🌐</text>
+  <!-- Text -->
+  <text x="580" y="195" font-size="20" font-weight="bold" fill="#8f000b">2. Anatomy of a Web Page</text>
+  <text x="580" y="230" font-size="14" fill="#8f000b">
+    <tspan x="580" dy="0">• HTML: The structural skeleton</tspan>
+    <tspan x="590" dy="18">(text, links)</tspan>
+    <tspan x="580" dy="22">• CSS: The skin &amp; clothing</tspan>
+    <tspan x="590" dy="18">(colors, layout, fonts)</tspan>
+    <tspan x="580" dy="22">• JavaScript: The muscles</tspan>
+    <tspan x="590" dy="18">(interactivity)</tspan>
+  </text>
+
+  <!-- ================= CARD 3 ================= -->
+  <!-- Box -->
+  <rect x="550" y="420" width="350" height="210" rx="16" fill="#f4fcf7" stroke="#b2e3c6" stroke-width="2" filter="url(#shadow)" />
+  <!-- Watermark -->
+  <text x="840" y="570" font-size="100" opacity="0.08" text-anchor="middle">🕷️</text>
+  <!-- Text -->
+  <text x="580" y="465" font-size="20" font-weight="bold" fill="#0e5927">3. How Web Scraping Works</text>
+  <text x="580" y="500" font-size="14" fill="#0e5927">
+    <tspan x="580" dy="0">• Navigating: Pagination and</tspan>
+    <tspan x="590" dy="18">crawling (spidering)</tspan>
+    <tspan x="580" dy="22">• Parsing: Extracting specific</tspan>
+    <tspan x="590" dy="18">data from raw HTML</tspan>
+    <tspan x="580" dy="22">• Exporting: Structuring data</tspan>
+    <tspan x="590" dy="18">into neat CSV tables</tspan>
+  </text>
+
+  <!-- ================= CARD 4 ================= -->
+  <!-- Box -->
+  <rect x="100" y="420" width="350" height="210" rx="16" fill="#fefcf5" stroke="#f3e4c4" stroke-width="2" filter="url(#shadow)" />
+  <!-- Watermark -->
+  <text x="390" y="570" font-size="100" opacity="0.08" text-anchor="middle">⚖️</text>
+  <!-- Text -->
+  <text x="130" y="465" font-size="20" font-weight="bold" fill="#7a5900">4. Ethical &amp; Legal Considerations</text>
+  <text x="130" y="500" font-size="14" fill="#7a5900">
+    <tspan x="130" dy="0">• Respect robots.txt directives</tspan>
+    <tspan x="140" dy="18">for automated bots</tspan>
+    <tspan x="130" dy="22">• Rate Limiting: Add sleep</tspan>
+    <tspan x="140" dy="18">delays to avoid DDoS</tspan>
+    <tspan x="130" dy="22">• Terms of Service: Avoid</tspan>
+    <tspan x="140" dy="18">private/copyrighted data</tspan>
+  </text>
+
+  <!-- Footer -->
+  <text x="960" y="670" font-size="14" font-weight="bold" fill="#94a3b8" text-anchor="end">@alhrkn</text>
+</svg>
