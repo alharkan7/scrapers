@@ -8,20 +8,13 @@ Features:
   - Periodic progress saves on a wall-clock interval
 
 Usage:
-  # Single video (test)
-  python scraper.py --url "https://www.tiktok.com/@user/video/123" --max-pages 2
+  # Use defaults from the CONFIG block below
+  python scraper.py
 
-  # All URLs in links.txt
-  python scraper.py --links links.txt
-
-  # Resume a previous run (default if progress.json exists)
+  # Optional CLI overrides (same names as config vars)
   python scraper.py --links links.txt --output-dir output/full
-
-  # Fresh start (ignore existing progress)
-  python scraper.py --links links.txt --fresh
-
-  # Tune delays / checkpoint interval
-  python scraper.py --links links.txt --delay 2.0 --jitter 0.4 --save-interval 180
+  python scraper.py --url "https://www.tiktok.com/@user/video/123" --max-pages 2
+  python scraper.py --fresh
 """
 
 from __future__ import annotations
@@ -39,6 +32,47 @@ from typing import Any
 from urllib.parse import urlparse
 
 import requests
+
+# =============================================================================
+# CONFIGURATION — edit these, then run: python scraper.py
+# CLI flags (if provided) override the values below.
+# =============================================================================
+
+# Input: path to text file with one TikTok video URL per line
+LINKS_FILE = Path("links.txt")
+
+# Optional single-video mode. If set (non-empty string), scrapes only this URL
+# and ignores LINKS_FILE. Example:
+#   SINGLE_URL = "https://www.tiktok.com/@user/video/1234567890"
+SINGLE_URL: str | None = None
+
+# Output directory for comments JSON/CSV, progress.json, meta.json
+OUTPUT_DIR = Path("output")
+
+# Comments requested per API page (TikTok often returns ~48–50)
+COUNT = 50
+
+# Stop early per video (None = unlimited / scrape until has_more is false)
+MAX_PAGES: int | None = None
+MAX_COMMENTS: int | None = None
+
+# Delay between comment pages (seconds). Actual sleep is randomized with JITTER.
+DELAY = 2.0
+JITTER = 0.4  # fraction: sleep in [DELAY*(1-JITTER), DELAY*(1+JITTER)]
+
+# Delay between videos (seconds)
+VIDEO_DELAY = 5.0
+VIDEO_JITTER = 0.4
+
+# Timed checkpoint interval (seconds) — also saves on video end / error / Ctrl+C
+SAVE_INTERVAL = 180.0
+
+# If True, ignore existing progress.json and start from scratch
+FRESH = False
+
+# =============================================================================
+# Internals (usually leave alone)
+# =============================================================================
 
 COMMENT_API = "https://www.tiktok.com/api/comment/list/"
 DEFAULT_HEADERS = {
@@ -521,95 +555,145 @@ def rebuild_combined(store: ProgressStore, video_ids: list[str]) -> tuple[int, i
 
 
 def parse_args() -> argparse.Namespace:
+    """CLI overrides for the CONFIG block at the top of this file."""
     parser = argparse.ArgumentParser(
-        description="Scrape TikTok video comments (jitter + pause/resume)"
+        description="Scrape TikTok video comments (jitter + pause/resume). "
+        "Defaults come from the CONFIG block at the top of scraper.py."
     )
-    src = parser.add_mutually_exclusive_group(required=True)
-    src.add_argument("--url", help="Single TikTok video URL or video id")
-    src.add_argument("--links", type=Path, help="Text file with one URL per line")
+    src = parser.add_mutually_exclusive_group(required=False)
+    src.add_argument(
+        "--url",
+        default=None,
+        help=f"Single TikTok video URL (default from config: {SINGLE_URL!r})",
+    )
+    src.add_argument(
+        "--links",
+        type=Path,
+        default=None,
+        help=f"Text file with one URL per line (default from config: {LINKS_FILE})",
+    )
 
     parser.add_argument(
         "--output-dir",
         type=Path,
-        default=Path("output"),
-        help="Directory for JSON/CSV/progress output (default: output)",
+        default=None,
+        help=f"Output directory (default from config: {OUTPUT_DIR})",
     )
     parser.add_argument(
         "--count",
         type=int,
-        default=50,
-        help="Comments per API page (default: 50)",
+        default=None,
+        help=f"Comments per API page (default from config: {COUNT})",
     )
     parser.add_argument(
         "--max-pages",
         type=int,
         default=None,
-        help="Max pages per video (default: unlimited)",
+        help=f"Max pages per video (default from config: {MAX_PAGES})",
     )
     parser.add_argument(
         "--max-comments",
         type=int,
         default=None,
-        help="Max comments per video (default: unlimited)",
+        help=f"Max comments per video (default from config: {MAX_COMMENTS})",
     )
     parser.add_argument(
         "--delay",
         type=float,
-        default=2.0,
-        help="Base seconds between page requests (default: 2.0)",
+        default=None,
+        help=f"Base seconds between page requests (default from config: {DELAY})",
     )
     parser.add_argument(
         "--jitter",
         type=float,
-        default=0.4,
-        help="Jitter fraction for page delay (default: 0.4 => ±40%%)",
+        default=None,
+        help=f"Jitter fraction for page delay (default from config: {JITTER})",
     )
     parser.add_argument(
         "--video-delay",
         type=float,
-        default=5.0,
-        help="Base seconds between videos (default: 5.0)",
+        default=None,
+        help=f"Base seconds between videos (default from config: {VIDEO_DELAY})",
     )
     parser.add_argument(
         "--video-jitter",
         type=float,
-        default=0.4,
-        help="Jitter fraction for between-video delay (default: 0.4)",
+        default=None,
+        help=f"Jitter fraction for between-video delay (default from config: {VIDEO_JITTER})",
     )
     parser.add_argument(
         "--save-interval",
         type=float,
-        default=180.0,
-        help="Seconds between timed progress checkpoints (default: 180)",
+        default=None,
+        help=f"Seconds between checkpoints (default from config: {SAVE_INTERVAL})",
     )
     parser.add_argument(
         "--fresh",
         action="store_true",
+        default=None,
         help="Ignore existing progress.json and start from scratch",
+    )
+    parser.add_argument(
+        "--no-fresh",
+        action="store_true",
+        help="Force resume even if FRESH=True in config",
     )
     return parser.parse_args()
 
 
-def main() -> None:
-    args = parse_args()
+def resolve_config(args: argparse.Namespace) -> dict[str, Any]:
+    """Merge top-of-file CONFIG with optional CLI overrides."""
+    single_url = args.url if args.url is not None else SINGLE_URL
+    links_file = args.links if args.links is not None else LINKS_FILE
+    output_dir = args.output_dir if args.output_dir is not None else OUTPUT_DIR
 
-    if args.url:
-        urls = [args.url]
+    if args.fresh:
+        fresh = True
+    elif args.no_fresh:
+        fresh = False
     else:
-        urls = load_links(args.links)
+        fresh = FRESH
+
+    return {
+        "single_url": single_url.strip() if isinstance(single_url, str) and single_url.strip() else None,
+        "links_file": Path(links_file),
+        "output_dir": Path(output_dir),
+        "count": args.count if args.count is not None else COUNT,
+        "max_pages": args.max_pages if args.max_pages is not None else MAX_PAGES,
+        "max_comments": args.max_comments if args.max_comments is not None else MAX_COMMENTS,
+        "delay": args.delay if args.delay is not None else DELAY,
+        "jitter": args.jitter if args.jitter is not None else JITTER,
+        "video_delay": args.video_delay if args.video_delay is not None else VIDEO_DELAY,
+        "video_jitter": args.video_jitter if args.video_jitter is not None else VIDEO_JITTER,
+        "save_interval": args.save_interval if args.save_interval is not None else SAVE_INTERVAL,
+        "fresh": fresh,
+    }
+
+
+def main() -> None:
+    cfg = resolve_config(parse_args())
+
+    if cfg["single_url"]:
+        urls = [cfg["single_url"]]
+    else:
+        links_file = cfg["links_file"]
+        if not links_file.exists():
+            raise SystemExit(f"Links file not found: {links_file}")
+        urls = load_links(links_file)
         if not urls:
-            raise SystemExit(f"No URLs found in {args.links}")
+            raise SystemExit(f"No URLs found in {links_file}")
 
     # Stable video id order matching input URLs
     video_ids = [extract_video_id(u) for u in urls]
 
-    store = ProgressStore(args.output_dir, save_interval=args.save_interval)
-    store.load_or_init(urls, fresh=args.fresh)
+    store = ProgressStore(cfg["output_dir"], save_interval=cfg["save_interval"])
+    store.load_or_init(urls, fresh=cfg["fresh"])
 
     print(
-        f"Config: delay={args.delay}s jitter={args.jitter} "
-        f"video_delay={args.video_delay}s save_interval={args.save_interval}s "
-        f"output={args.output_dir}"
+        f"Config: links={cfg['links_file'] if not cfg['single_url'] else cfg['single_url']} "
+        f"output={cfg['output_dir']} delay={cfg['delay']}s jitter={cfg['jitter']} "
+        f"video_delay={cfg['video_delay']}s save_interval={cfg['save_interval']}s "
+        f"fresh={cfg['fresh']}"
     )
 
     session = requests.Session()
@@ -631,11 +715,11 @@ def main() -> None:
                     session,
                     store,
                     url,
-                    count=args.count,
-                    max_pages=args.max_pages,
-                    max_comments=args.max_comments,
-                    delay=args.delay,
-                    jitter=args.jitter,
+                    count=cfg["count"],
+                    max_pages=cfg["max_pages"],
+                    max_comments=cfg["max_comments"],
+                    delay=cfg["delay"],
+                    jitter=cfg["jitter"],
                 )
             except KeyboardInterrupt:
                 interrupted = True
@@ -651,7 +735,7 @@ def main() -> None:
             )
 
             if i < len(urls) and not interrupted:
-                slept = sleep_with_jitter(args.video_delay, args.video_jitter)
+                slept = sleep_with_jitter(cfg["video_delay"], cfg["video_jitter"])
                 print(f"  video gap sleep {slept:.2f}s")
 
     finally:

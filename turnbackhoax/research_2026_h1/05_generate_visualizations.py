@@ -65,7 +65,7 @@ with open(out_file, 'w') as f:
     # Plot Temporal Analysis
     plt.figure(figsize=(10, 6))
     monthly_subset.plot(kind='line', marker='o', linewidth=2.5, ax=plt.gca())
-    plt.title('Disinformation Volume in Indonesia (H1 2026)', fontsize=16, fontweight='bold', pad=15)
+    plt.title('Disinformation Volume in Indonesia (Jan-Jul 2026)', fontsize=16, fontweight='bold', pad=15)
     plt.xlabel('Month', fontsize=12)
     plt.ylabel('Number of Fact-Checked Hoaxes', fontsize=12)
     plt.legend(title='Hoax Category', frameon=True)

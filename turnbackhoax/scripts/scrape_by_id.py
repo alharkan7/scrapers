@@ -26,8 +26,8 @@ from datetime import datetime
 # CONFIGURATION - Edit these values
 # ============================================================================
 
-START_ARTICLE_ID = 32514      # Starting article ID (1 for full scrape)
-END_ARTICLE_ID = 35550   # Ending article ID (set high, script will stop automatically)
+START_ARTICLE_ID = 35551      # Starting article ID (1 for full scrape)
+END_ARTICLE_ID = 40000   # Ending article ID (set high, script will stop automatically)
 
 # Stop scraping after this many consecutive "not found" or 404 errors
 MAX_CONSECUTIVE_MISSES = 20
@@ -437,6 +437,18 @@ def main():
             
             # Save result (success only)
             save_result(result)
+            
+            # Check if we have passed July 2026
+            scraped_date = result.get('date', '')
+            if scraped_date:
+                try:
+                    dt = datetime.strptime(scraped_date, "%d/%m/%Y")
+                    if dt.year > 2026 or (dt.year == 2026 and dt.month > 7):
+                        pbar.close()
+                        print(f"\n\nStopping: Reached date beyond 31 July 2026 ({scraped_date})")
+                        break
+                except Exception as e:
+                    pass
 
         pbar.set_postfix({
             'found': stats['scraped'], 

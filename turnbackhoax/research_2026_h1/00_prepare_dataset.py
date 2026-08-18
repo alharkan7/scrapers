@@ -33,9 +33,9 @@ def parse_id_date(d_str):
 print("Parsing dates...")
 df['parsed_date'] = df['date'].apply(parse_id_date)
 
-print("Filtering for H1 2026 (Jan 1 - Jun 30)...")
-df_2026 = df[(df['parsed_date'] >= '2026-01-01') & (df['parsed_date'] <= '2026-06-30')].copy()
+print("Filtering for Jan 1 - Jul 31 2026...")
+df_2026 = df[(df['parsed_date'] >= '2026-01-01') & (df['parsed_date'] <= '2026-07-31')].copy()
 
-print(f"Found {len(df_2026)} articles for H1 2026.")
+print(f"Found {len(df_2026)} articles for Jan-Jul 2026.")
 df_2026.to_csv(output_file, index=False)
 print(f"Saved base dataset to {output_file}")
